@@ -349,6 +349,13 @@ static inline int codec_video_es_init(codec_para_t *pcodec)
         print_error_msg(codec_r, errno, __FUNCTION__, __LINE__);
         return codec_r;
     }
+    r = codec_set_drmmode(pcodec, pcodec->drmmode);
+    if (r < 0) {
+        codec_h_close(handle);
+        codec_r = system_error_to_codec_error(r);
+        print_error_msg(codec_r, errno, __FUNCTION__, __LINE__);
+        return codec_r;
+    }
     return CODEC_ERROR_NONE;
 }
 
