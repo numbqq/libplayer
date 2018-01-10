@@ -23,6 +23,8 @@ all:
 	-$(MAKE) -C third_parts/libvhls all
 	-$(MAKE) -C bootplayer all
 	-$(MAKE) -C bootplayer install
+	-$(MAKE) -C audioplayer all
+	-$(MAKE) -C audioplayer install
 
 install:
 	-$(MAKE) -C examples install

@@ -38,11 +38,14 @@ enum mad_flow {
     MAD_FLOW_IGNORE   = 0x0020    /* ignore the current frame */
 };
 
-struct mad_decoder {
+struct  mad_decoder{
     enum mad_decoder_mode mode;
-
+    int bad_last_frame;
+    int last_sr;
+    int last_ch_num;
     int options;
-
+    char *pcm_out_data;
+    int *pcm_out_len;
     struct {
         long pid;
         int in;

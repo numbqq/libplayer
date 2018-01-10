@@ -64,6 +64,7 @@ int audio_decode_init(void **handle, arm_audio_info *a_ainfo)
     audec->has_video=a_ainfo->has_video;
     audec->associate_dec_supported = a_ainfo->associate_dec_supported;
     audec->mixing_level = a_ainfo->mixing_level;
+    audec->use_hardabuf = a_ainfo->use_hardabuf;
     adec_print("%s::%d-[audec associate support:%d]-[audec mixing_level:%d]\n",
         __FUNCTION__, __LINE__, audec->associate_dec_supported, audec->mixing_level);
     if (a_ainfo->droppcm_flag) {

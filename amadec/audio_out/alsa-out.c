@@ -27,9 +27,6 @@
 #include <cutils/properties.h>
 #endif
 
-//#define adec_print printf
-#define   PERIOD_SIZE  1024
-#define   PERIOD_NUM    4
 #define USE_INTERPOLATION
 
 static snd_pcm_sframes_t (*readi_func)(snd_pcm_t *handle, void *buffer, snd_pcm_uframes_t size);
@@ -41,8 +38,6 @@ static float  alsa_default_vol = 1.0;
 static int hdmi_out = 0;
 static int fragcount = 16;
 static snd_pcm_uframes_t chunk_size = 1024;
-static char output_buffer[64 * 1024];
-static unsigned char decode_buffer[OUTPUT_BUFFER_SIZE + 64];
 #define   PERIOD_SIZE  1024
 #define   PERIOD_NUM    4
 
@@ -174,7 +169,6 @@ static int set_params(alsa_param_t *alsa_params)
         adec_print("Broken configuration for this PCM: no configurations available");
         return err;
     }
-
     err = snd_pcm_hw_params_set_access(alsa_params->handle, hwparams,
                                        SND_PCM_ACCESS_RW_INTERLEAVED);
     if (err < 0) {
@@ -428,6 +422,50 @@ OUT:
     return port;
 }
 */
+
+static void alsa_volume_ramping(alsa_param_t * alsa_param, u_char * data,size_t count){
+    size_t i;
+    float target_vol;
+    int fade_sample = alsa_param->rate;
+    adec_bool_t fade_in,fade_out;
+    short *sample = (short*)data;
+
+    /* recalculate ramping step when target volume changes */
+    if (alsa_param->target_vol != alsa_param->staging_vol) {
+        alsa_param->target_vol = alsa_param->staging_vol;
+        alsa_param->fade = alsa_param->target_vol - alsa_param->last_vol;
+    }
+
+    target_vol = alsa_param->target_vol;
+
+    if (alsa_param->fade != 0) {
+        /* volume ramping in 1 second */
+        for (i = 0; i < count * 2; i = i + 2) {
+            if (target_vol > alsa_param->last_vol) {
+                alsa_param->last_vol += alsa_param->fade / fade_sample;
+                if (alsa_param->last_vol >= target_vol) {
+                    alsa_param->last_vol = target_vol;
+                    alsa_param->fade = 0;
+                }
+            } else if (target_vol < alsa_param->last_vol) {
+                alsa_param->last_vol += alsa_param->fade / fade_sample;
+                if (alsa_param->last_vol <= target_vol) {
+                    alsa_param->last_vol = target_vol;
+                    alsa_param->fade = 0;
+                }
+            }
+
+            sample[i] = (short)(alsa_param->last_vol * (float)sample[i]);
+            sample[i + 1] = (short)(alsa_param->last_vol * (float)sample[i + 1]);
+        }
+    } else {
+        for (i = 0; i < count * 2; i = i + 2) {
+            sample[i] = (short)(target_vol * (float)sample[i]);
+            sample[i + 1] = (short)(target_vol * (float)sample[i + 1]);
+        }
+    }
+}
+
 static size_t pcm_write(alsa_param_t * alsa_param, u_char * data, size_t count)
 {
     snd_pcm_sframes_t r;
@@ -445,6 +483,8 @@ static size_t pcm_write(alsa_param_t * alsa_param, u_char * data, size_t count)
         for (i  = 0;i < count*2;i++) {
             sample[i] = (short)(alsa_default_vol*(float)sample[i]);
         }
+    } else {
+        alsa_volume_ramping(alsa_param,data,count);
     }
     // dump  pcm data here
 #if 0
@@ -518,6 +558,7 @@ static unsigned oversample_play(alsa_param_t * alsa_param, char * src, unsigned 
 {
     int frames = 0;
     int ret, i;
+    char output_buffer[64 * 1024];
     unsigned short * to, *from;
     to = (unsigned short *)output_buffer;
     from = (unsigned short *)src;
@@ -698,11 +739,11 @@ static void *alsa_playback_loop(void *args)
     int offset = 0;
     aml_audio_dec_t *audec;
     alsa_param_t *alsa_params;
-    unsigned char *buffer = (unsigned char *)(((unsigned long)decode_buffer + 32) & (~0x1f));
-
     char value[PROPERTY_VALUE_MAX]={0};
     audec = (aml_audio_dec_t *)args;
     alsa_params = (alsa_param_t *)audec->aout_ops.private_data;
+    unsigned char *decode_buffer = alsa_params->decode_buffer;
+    unsigned char *buffer = (unsigned char *)(((unsigned long)decode_buffer + 32) & (~0x1f));
 
     // bootplayer default volume configuration
     if (property_get("media.amplayer.boot_vol",value,NULL) > 0) {
@@ -760,7 +801,6 @@ static void *alsa_playback_loop(void *args)
         if (alsa_params->stop_flag) {
             goto exit;
         }
-        adec_refresh_pts(audec);
 
         len2 = alsa_play(alsa_params, (buffer + offset), len);
         if (len2 >= 0) {
@@ -772,6 +812,7 @@ static void *alsa_playback_loop(void *args)
         }
     }
 exit:
+
     adec_print("Exit alsa playback loop !\n");
     pthread_exit(NULL);
     return NULL;
@@ -876,6 +917,10 @@ int alsa_init(struct aml_audio_dec* audec)
     //alsa_param->rate = audec->samplerate;
     alsa_param->format = SND_PCM_FORMAT_S16_LE;
     alsa_param->wait_flag = 0;
+    alsa_param->staging_vol = 1.0f;
+    alsa_param->target_vol = 1.0f;
+    alsa_param->last_vol = 1.0f;
+    alsa_param->fade = 0;
 
 #ifdef USE_INTERPOLATION
     memset(pass1_history, 0, 64 * sizeof(int));
@@ -1007,7 +1052,16 @@ int alsa_pause(struct aml_audio_dec* audec)
 
     int res;
     alsa_param_t *alsa_params;
-
+    int dgraw = amsysfs_get_sysfs_int("/sys/class/audiodsp/digital_raw");
+    if (((AUDIO_SPDIF_PASSTHROUGH == dgraw) || (AUDIO_HDMI_PASSTHROUGH == dgraw)) && \
+        ((ACODEC_FMT_AC3 == audec->format) || (ACODEC_FMT_EAC3 == audec->format) || \
+        (ACODEC_FMT_DTS == audec->format)) ) {
+        int err = alsa_pause_raw(audec);
+        if (err) {
+              printf("alsa_pause_raw return  error: %d\n", err);
+        }
+        return err;
+    }
     alsa_params = (alsa_param_t *)audec->aout_ops.private_data;
     pthread_mutex_lock(&alsa_params->playback_mutex);
 
@@ -1042,6 +1096,7 @@ int alsa_resume(struct aml_audio_dec* audec)
         if (err) {
               printf("alsa_resume_raw return  error: %d\n", err);
         }
+        return err;
     }
     alsa_params = (alsa_param_t *)audec->aout_ops.private_data;
     pthread_mutex_lock(&alsa_params->playback_mutex);
@@ -1141,11 +1196,29 @@ unsigned long alsa_latency(struct aml_audio_dec* audec)
     if (tv_mode) {
         bits_per_sample = bits_per_sample*4;
     }
-    buffered_data = alsa_param->buffer_size - alsa_get_space(alsa_param);
-    sample_num = buffered_data / (alsa_param->channelcount * (bits_per_sample / 8)); /*16/2*/
+#if 0
+   // buffered_data = alsa_param->buffer_size - alsa_get_space(alsa_param);
+    //sample_num = buffered_data / (alsa_param->channelcount * (bits_per_sample / 8)); /*16/2*/
+#else
+    int ret = snd_pcm_delay(alsa_param->handle,&sample_num);
+    if (ret != 0) {
+       adec_print("Cannot get pcm delay \n");
+       return 0;
+    }
+    buffered_data = sample_num * alsa_param->bits_per_sample / 8;
+    //adec_print("alsa_param->buffer_size :%d buffered_data:%d \n",alsa_param->buffer_size,buffered_data);
+#endif
+    if (buffered_data > alsa_param->buffer_size) {
+        sample_num = alsa_param->buffer_size/( alsa_param->bits_per_sample / 8);
+    }
     return ((sample_num * 1000) / alsa_param->rate);
 }
 
+static int alsa_set_volume(struct aml_audio_dec* audec, float vol){
+    alsa_param_t *alsa_param = (alsa_param_t *)audec->aout_ops.private_data;
+    alsa_param->staging_vol = vol;
+    return 0;
+}
 static int alsa_mute(struct aml_audio_dec* audec, adec_bool_t en){
 
     int dgraw = amsysfs_get_sysfs_int("/sys/class/audiodsp/digital_raw");
@@ -1174,6 +1247,7 @@ void get_output_func(struct aml_audio_dec* audec)
     out_ops->resume = alsa_resume;
     out_ops->mute = alsa_mute;
     out_ops->stop = alsa_stop;
+    out_ops->set_volume = alsa_set_volume;
     out_ops->latency = alsa_latency;
     out_ops->track_rate = 8.8f;
 }

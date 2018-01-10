@@ -40,5 +40,10 @@ typedef struct {
     int stop_flag;
     int pause_flag;
     int wait_flag;
+	unsigned char decode_buffer[OUTPUT_BUFFER_SIZE + 64];
+	float staging_vol;
+	float target_vol;
+	float last_vol;
+	float fade;
 } alsa_param_t;
 #endif

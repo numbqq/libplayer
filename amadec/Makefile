@@ -4,7 +4,7 @@ LIB_DIR?=$(M_PREFIX)/lib
 HEADERS_DIR?=$(M_PREFIX)/include
 
 TARGET_OBJS=adec-external-ctrl.o adec-internal-mgt.o adec-ffmpeg-mgt.o adec-message.o adec-pts-mgt.o feeder.o adec_write.o adec_read.o\
-           dsp/audiodsp-ctl.o audio_out/alsa-out.o audio_out/alsa-out-raw.o audio_out/aml_resample.o audiodsp_update_format.o spdif_api.o pcmenc_api.o dts_transenc_api.o dts_enc.o adec_assoc_audio.o adec-wfd.o
+           dsp/audiodsp-ctl.o audio_out/alsa-out.o audio_out/alsa-out-raw.o audio_out/aml_resample.o audiodsp_update_format.o spdif_api.o pcmenc_api.o dts_transenc_api.o dts_enc.o adec_assoc_audio.o adec-wfd.o software_buf/software_buf.o
 
 TARGET=libamadec.so
 
@@ -16,7 +16,7 @@ TOPDIR=$(shell pwd)
 SRC?=$(TOPDIR)
 
 CFLAGS+=-O2 -fPIC -g
-CFLAGS+=-I$(SRC) -I$(SRC)/include -I$(SRC)/../amavutils/include -I$(SRC)/../amplayer/player/include -I${HEADERS_DIR} -L${LIB_DIR}
+CFLAGS+=-I$(SRC) -I$(SRC)/include -I$(SRC)/../amavutils/include -I$(SRC)/software_buf/ -I$(SRC)/../amplayer/player/include -I${HEADERS_DIR} -L${LIB_DIR}
 CFLAGS+=-DALSA_OUT
 
 ifdef DOLBY_UDC

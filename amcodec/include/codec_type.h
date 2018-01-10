@@ -119,6 +119,7 @@ unsigned int noblock:
     char *sub_filename;
     int associate_dec_supported;//support associate or not
     int mixing_level;
+	int use_hardabuf;
 } codec_para_t;
 
 typedef struct {
@@ -152,6 +153,7 @@ typedef struct {
     unsigned int has_video;
     int associate_dec_supported;//support associate or not
     int mixing_level;
+	int use_hardabuf;
 } arm_audio_info;
 
 

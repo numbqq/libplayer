@@ -72,19 +72,15 @@
 
 #define  MUTE_S  0.08
 
-
-struct mad_decoder decoder;
-char *pcm_out_data;
-int *pcm_out_len;
-enum mad_flow(*error_func)(void *, struct mad_stream *, struct mad_frame *);
-void *error_data;
-int bad_last_frame = 0;
-struct mad_stream *stream;
-struct mad_frame *frame;
-struct mad_synth *synth;
-int result = 0;
-static int last_sr = -1;
-static int last_ch_num = -1;
+//char *pcm_out_data;
+//int *pcm_out_len;
+//enum mad_flow(*error_func)(void *, struct mad_stream *, struct mad_frame *);
+//void *error_data;
+//int bad_last_frame = 0;
+//struct mad_stream *stream;
+//struct mad_frame *frame;
+//struct mad_synth *synth;
+//int result = 0;
 
 /*
 * This is a private message structure. A generic pointer to this structure
@@ -221,7 +217,9 @@ void mad_decoder_init(struct mad_decoder *decoder, void *data,
                               void *, unsigned int *))
 {
     decoder->mode         = -1;
-
+    decoder->last_ch_num = -1;
+    decoder->last_sr = -1;
+    decoder->bad_last_frame = 0;
     decoder->options      = 0;
 
     decoder->async.pid    = 0;
@@ -500,7 +498,7 @@ int run_sync(struct mad_decoder *decoder)
     mad_stream_options(stream, decoder->options);
     */
     do {
-        switch (decoder->input_func(decoder->cb_data, stream)) {
+        switch (decoder->input_func(decoder->cb_data, &(decoder->sync->stream))) {
         case MAD_FLOW_STOP:
             goto done;
         case MAD_FLOW_BREAK:
@@ -527,12 +525,12 @@ int run_sync(struct mad_decoder *decoder)
 # endif
 
             if (decoder->header_func) {
-                if (mad_header_decode(&frame->header, stream) == -1) {
-                    if (!MAD_RECOVERABLE(stream->error)) {
+                if (mad_header_decode(&(decoder->sync->frame.header), &(decoder->sync->stream)) == -1) {
+                    if (!MAD_RECOVERABLE(decoder->sync->stream.error)) {
                         break;
                     }
 
-                    switch (error_func(decoder->cb_data, stream, frame)) {
+                    switch (decoder->error_func(decoder->cb_data, &(decoder->sync->stream), &(decoder->sync->frame))) {
                     case MAD_FLOW_STOP:
                         goto done;
                     case MAD_FLOW_BREAK:
@@ -544,7 +542,7 @@ int run_sync(struct mad_decoder *decoder)
                     }
                 }
 
-                switch (decoder->header_func(decoder->cb_data, &frame->header)) {
+                switch (decoder->header_func(decoder->cb_data,&(decoder->sync->frame.header))) {
                 case MAD_FLOW_STOP:
                     goto done;
                 case MAD_FLOW_BREAK:
@@ -556,20 +554,20 @@ int run_sync(struct mad_decoder *decoder)
                 }
             }
 
-            if (mad_frame_decode(frame, stream) == -1) {
-                if (!MAD_RECOVERABLE(stream->error)) {
+            if (mad_frame_decode(&(decoder->sync->frame),&(decoder->sync->stream)) == -1) {
+                if (!MAD_RECOVERABLE(decoder->sync->stream.error)) {
                     break;
                 }
 
-                switch (error_func(decoder->cb_data, stream, frame)) {
+                switch (decoder->error_func(decoder->cb_data, &decoder->sync->stream, &decoder->sync->frame)) {
                 case MAD_FLOW_STOP:
                     goto done;
                 case MAD_FLOW_BREAK:
                     goto fail;
                 case MAD_FLOW_IGNORE:
                     // for this error,we should skip one bytes for another frame sync,otherwise no chance to cosume data again
-                    if (stream->this_frame == stream->buffer) {
-                        stream->this_frame = stream->buffer + 1;
+                    if (decoder->sync->stream.this_frame == decoder->sync->stream.buffer) {
+                        decoder->sync->stream.this_frame = decoder->sync->stream.buffer + 1;
                     }
                     audio_codec_print("[%s,%d] MAD_FLOW_IGNORE\n", __FUNCTION__, __LINE__);
                     goto fail;
@@ -579,11 +577,11 @@ int run_sync(struct mad_decoder *decoder)
                     continue;
                 }
             } else {
-                bad_last_frame = 0;
+                decoder->bad_last_frame = 0;
             }
 
             if (decoder->filter_func) {
-                switch (decoder->filter_func(decoder->cb_data, stream, frame)) {
+                switch (decoder->filter_func(decoder->cb_data, &(decoder->sync->stream), &(decoder->sync->frame))) {
                 case MAD_FLOW_STOP:
                     goto done;
                 case MAD_FLOW_BREAK:
@@ -595,11 +593,11 @@ int run_sync(struct mad_decoder *decoder)
                 }
             }
 
-            mad_synth_frame(synth, frame);
+            mad_synth_frame(&(decoder->sync->synth), &(decoder->sync->frame));
 
             if (decoder->output_func) {
-                switch (decoder->output_func(decoder->cb_data,
-                                             &frame->header, &synth->pcm)) {
+                switch (decoder->output_func(decoder,
+                                             &decoder->sync->frame.header, &decoder->sync->synth.pcm)) {
                 case MAD_FLOW_STOP:
                     goto done;
                 case MAD_FLOW_BREAK:
@@ -610,10 +608,10 @@ int run_sync(struct mad_decoder *decoder)
                 }
             }
         }
-    } while (stream->error == MAD_ERROR_BUFLEN);
+    } while (decoder->sync->stream.error == MAD_ERROR_BUFLEN);
 
 fail:
-    result = -1;
+    //result = -1;
 
 done:
     /*
@@ -622,7 +620,7 @@ done:
     mad_stream_finish(stream);
     */
     //return result;
-    return stream->this_frame - stream->buffer;
+    return decoder->sync->stream.this_frame - decoder->sync->stream.buffer;
 }
 
 # if defined(USE_ASYNC)
@@ -806,7 +804,7 @@ signed int scale(mad_fixed_t sample)
 */
 
 static
-enum mad_flow output(void *data,
+enum mad_flow output(struct mad_decoder *decoder,
                      struct mad_header const *header,
                      struct mad_pcm *pcm)
 {
@@ -821,20 +819,20 @@ enum mad_flow output(void *data,
     right_ch  = pcm->samples[1];
     //*pcm_out_len += 4608;
     /*store the last channel num and sr info */
-    if (last_ch_num != nchannels) {
-        last_ch_num = nchannels;
+    if (decoder->last_ch_num != nchannels) {
+        decoder->last_ch_num = nchannels;
     }
-    if (last_sr != pcm->samplerate) {
-        last_sr = pcm->samplerate;
+    if (decoder->last_sr != pcm->samplerate) {
+        decoder->last_sr = pcm->samplerate;
     }
-    *pcm_out_len += pcm->length * 2 * (header->mode > 0 ? 2 : 1);;
+    (*(decoder->pcm_out_len)) += pcm->length * 2 * (header->mode > 0 ? 2 : 1);;
 
-    if (stream->muted_samples == 0) {
-        stream->muted_samples = pcm->samplerate * pcm->channels * MUTE_S;
+    if (decoder->sync->stream.muted_samples == 0) {
+        decoder->sync->stream.muted_samples = pcm->samplerate * pcm->channels * MUTE_S;
     }
-    if (stream->muted_count < stream->muted_samples) {
-        memset(pcm_out_data, 0, 2 * nsamples);
-        stream->muted_count += nsamples;
+    if (decoder->sync->stream.muted_count < decoder->sync->stream.muted_samples) {
+        memset(decoder->pcm_out_data, 0, 2 * nsamples);
+        decoder->sync->stream.muted_count += nsamples;
         goto output1;
     }
 
@@ -847,21 +845,21 @@ enum mad_flow output(void *data,
         sample_l = scale(*left_ch++);
         //putchar((sample >> 0) & 0xff);
         //putchar((sample >> 8) & 0xff);
-        pcm_out_data[0] = sample_l >> 0;
-        pcm_out_data[1] = sample_l >> 8;
-        pcm_out_data += 2;
+        decoder->pcm_out_data[0] = sample_l >> 0;
+        decoder->pcm_out_data[1] = sample_l >> 8;
+        decoder->pcm_out_data += 2;
         if (nchannels == 2) {
             sample_r = scale(*right_ch++);
             //putchar((sample >> 0) & 0xff);
             //putchar((sample >> 8) & 0xff);
-            pcm_out_data[0] = sample_r >> 0;
-            pcm_out_data[1] = sample_r >> 8;
-            pcm_out_data += 2;
+            decoder->pcm_out_data[0] = sample_r >> 0;
+            decoder->pcm_out_data[1] = sample_r >> 8;
+            decoder->pcm_out_data += 2;
         }
 
     }
 output1:
-    stream->this_frame = stream->next_frame;
+    decoder->sync->stream.this_frame = decoder->sync->stream.next_frame;
     return MAD_FLOW_STOP;
     //return MAD_FLOW_CONTINUE;
 }
@@ -925,22 +923,22 @@ int audio_dec_decode(
     char *outbuf, int *outlen, char *inbuf, int inlen/*unsigned char const *start, unsigned long length*/)
 {
     int result;
+    struct mad_decoder *decoder = (struct mad_decoder *)adec_ops->pdecoder;
     struct buffer buffer;
 
     buffer.start  = inbuf;
     buffer.length = inlen;
-
     /* initialize our private message structure */
 
-    pcm_out_data = outbuf;
-    pcm_out_len = outlen;
-    *pcm_out_len = 0;
+    decoder->pcm_out_data = outbuf;
+    decoder->pcm_out_len = outlen;
+    *(decoder->pcm_out_len) = 0;
 
     /* configure input, output, and error functions */
-    decoder.cb_data = &buffer;
+    decoder->cb_data = &buffer;
 
     /* start decoding */
-    result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
+    result = mad_decoder_run(decoder, MAD_DECODER_MODE_SYNC);
 
     /* release the decoder */
 
@@ -954,42 +952,44 @@ int audio_dec_init(
 )
 {
     audio_codec_print("\n\n[%s]BuildDate--%s  BuildTime--%s", __FUNCTION__, __DATE__, __TIME__);
-    memset(&decoder, 0, sizeof(struct mad_decoder));
-
-    mad_decoder_init(&decoder, 0/*&buffer*/,
-                     input, 0 /* header */, 0 /* filter */, output,
-                     error, 0 /* message */);
-
-    if (decoder.input_func == 0) {
-        return -1;
-    }
-
-    if (decoder.error_func) {
-        error_func = decoder.error_func;
-        //error_data = decoder->cb_data;
-    } else {
-        error_func = error_default;
-        error_data = &bad_last_frame;
-    }
-
-    decoder.sync = malloc(sizeof(*decoder.sync));
-    stream = &decoder.sync->stream;
-    frame  = &decoder.sync->frame;
-    synth  = &decoder.sync->synth;
-
-    mad_stream_init(stream);
-    mad_frame_init(frame);
-    mad_synth_init(synth);
-
-    mad_stream_options(stream, decoder.options);
 
 #ifndef _WIN32
     adec_ops->nInBufSize = 5 * 1024;
     adec_ops->nOutBufSize = 64 * 1024;
 #endif
+    struct mad_decoder *decoder;
+    decoder = malloc(sizeof (struct mad_decoder));
+    memset(decoder, 0, sizeof(struct mad_decoder));
 
-    stream->muted_samples = 0;
-    stream->muted_count = 0;
+    mad_decoder_init(decoder, 0/*&buffer*/,
+                     input, 0 /* header */, 0 /* filter */, output,
+                     error, 0 /* message */);
+
+    if (decoder->input_func == 0) {
+        return -1;
+    }
+
+    if (decoder->error_func) {
+        //error_func = decoder->error_func;
+        //error_data = decoder->cb_data;
+    } else {
+        decoder->error_func = error_default;
+        //error_data = &(decoder->bad_last_frame);
+    }
+
+    decoder->sync = malloc(sizeof(*decoder->sync));
+    //stream = &decoder.sync->stream;
+    //frame  = &decoder.sync->frame;
+    //synth  = &decoder.sync->synth;
+
+    mad_stream_init(&decoder->sync->stream);
+    mad_frame_init(&decoder->sync->frame);
+    mad_synth_init(&decoder->sync->synth);
+
+    mad_stream_options(&decoder->sync->stream, decoder->options);
+    decoder->sync->stream.muted_samples = 0;
+    decoder->sync->stream.muted_count = 0;
+    adec_ops->pdecoder = (struct mad_decoder * )decoder;
     audio_codec_print("libmad init ok!\n");
 
     return 0;
@@ -998,12 +998,13 @@ int audio_dec_init(
 #ifndef _WIN32
 int audio_dec_getinfo(audio_decoder_operations_t *adec_ops, void *pAudioInfo)
 {
-    if (last_ch_num <= 0 || last_sr <= 0) {
+    struct mad_decoder *decoder = (struct mad_decoder *)(adec_ops->pdecoder);
+    if (decoder->last_ch_num <= 0 || decoder->last_sr <= 0) {
         return 0;
     }
-    ((AudioInfo *)pAudioInfo)->channels = last_ch_num;
-    ((AudioInfo *)pAudioInfo)->samplerate = last_sr;
-    adec_ops->NchOriginal = last_ch_num;
+    ((AudioInfo *)pAudioInfo)->channels = decoder->last_ch_num;
+    ((AudioInfo *)pAudioInfo)->samplerate = decoder->last_sr;
+    adec_ops->NchOriginal = decoder->last_ch_num;
     return 0;
 }
 #endif
@@ -1014,24 +1015,22 @@ int audio_dec_release(
 #endif
 )
 {
+    struct mad_decoder *decoder = (struct mad_decoder *)(adec_ops->pdecoder);
+    mad_synth_finish(&decoder->sync->synth);
+    mad_frame_finish(&decoder->sync->frame);
+    mad_stream_finish(&decoder->sync->stream);
+    free(decoder->sync);
+    mad_decoder_finish(decoder);
 
-
-    mad_synth_finish(synth);
-    mad_frame_finish(frame);
-    mad_stream_finish(stream);
-
-    free(decoder.sync);
-
-    mad_decoder_finish(&decoder);
-
-    stream->muted_samples = 0;
-    stream->muted_count = 0;
-
+    //stream->muted_samples = 0;
+    //stream->muted_count = 0;
+    free(decoder);
     audio_codec_print("libmad release ok!\n");
 
     return 0;
 }
 // win test
+/*
 #ifdef _WIN32
 char *filename = "mnjr.mp3";
 char *filename2 = "mnjr.pcm";
@@ -1105,3 +1104,4 @@ int main(int argc, char *argv[])
     return size;
 }
 #endif
+*/

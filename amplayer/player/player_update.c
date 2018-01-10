@@ -1183,8 +1183,12 @@ static void check_force_end(play_para_t *p_para, struct buf_status *vbuf, struct
                     p_para->playctrl_info.video_end_flag = 1;
                     log_print("[check_force_end]video force end!v:%d vlen=%d count=%d\n", p_para->vstream_info.has_video, vbuf->data_len, p_para->check_end.end_count);
                 } else if (!p_para->playctrl_info.audio_end_flag) {
-                    p_para->playctrl_info.audio_end_flag = 1;
-                    log_print("[check_force_end]audio force end!a:%d alen=%d count=%d\n", p_para->astream_info.has_audio, abuf->data_len, p_para->check_end.end_count);
+                    if (p_para->codec->use_hardabuf) {
+                        p_para->playctrl_info.audio_end_flag = 1;
+                        log_print("[check_force_end]audio force end!a:%d alen=%d count=%d\n", p_para->astream_info.has_audio, abuf->data_len, p_para->check_end.end_count);
+                    } else if (abuf->data_len <= 4096){
+                        p_para->playctrl_info.audio_end_flag = 1;
+                    }
                 }
                 if (p_para->playctrl_info.video_end_flag && p_para->playctrl_info.audio_end_flag) {
                     p_para->playctrl_info.end_flag = 1;
@@ -1422,7 +1426,7 @@ static int  update_buffering_states(play_para_t *p_para,
     }
 
     //if (!p_para->playctrl_info.read_end_flag){
-    if (p_para->buffering_enable && get_player_state(p_para) != PLAYER_PAUSE) {
+    if (p_para->buffering_enable && get_player_state(p_para) != PLAYER_PAUSE && p_para->codec->use_hardabuf) {
         //log_print(" buffering!!!,avdelayms=%d mS \n",avdelayms);
 
         if ((get_player_state(p_para) == PLAYER_RUNNING) &&
@@ -1556,9 +1560,10 @@ static int check_avdiff_time(play_para_t *p_para)
     int diff_threshold = 90000 * 8;
     AVFormatContext *pCtx = p_para->pFormatCtx;
     int64_t time_point;
-
-    apts = get_pts_audio(p_para);
-    vpts = get_pts_video(p_para);
+    if (p_para->astream_info.has_audio)
+        apts = get_pts_audio(p_para);
+    if (p_para->vstream_info.has_video)
+        vpts = get_pts_video(p_para);
 
     if ((((apts > vpts) && (apts - vpts > diff_threshold))
          || ((apts < vpts) && (vpts - apts > diff_threshold)))
@@ -1748,7 +1753,8 @@ int update_playing_info(play_para_t *p_para)
         if (get_player_state(p_para) == PLAYER_PLAYEND && p_para->state.current_time == p_para->state.full_time) {
             p_para->state.current_ms = p_para->state.current_time * 1000;
         }
-        p_para->state.pts_video = get_pts_video(p_para);
+        if (p_para->vstream_info.has_video)
+            p_para->state.pts_video = get_pts_video(p_para);
     }
 
     if (p_para->playctrl_info.read_end_flag && (get_player_state(p_para) != PLAYER_PAUSE)) {

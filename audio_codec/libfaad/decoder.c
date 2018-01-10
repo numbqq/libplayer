@@ -54,8 +54,6 @@
 #include "aacdec.h"
 int AACDataSource = 1;
 static HAACDecoder hAACDecoder;
-static  short  dec_buffer[1024 * 6 * 2];
-static short output_buffer[1024 * 2 * 2];
 static int adts_sample_rates[] = {96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, 0, 0, 0};
 
 static int FindAdtsSRIndex(int sr)
@@ -130,8 +128,6 @@ uint16_t dbg_count;
 
 
 #ifdef NEW_CODE_CHECK_LATM
-static unsigned char temp_bufer[200 * 1024];
-static int temp_size = 0;
 #define LATM_LOG  audio_codec_print
 static const int pi_sample_rates[16] = {
     96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
@@ -942,12 +938,15 @@ long NEAACDECAPI NeAACDecInit(NeAACDecHandle hpDecoder,
     adif_header adif;
     adts_header adts;
     NeAACDecStruct* hDecoder = (NeAACDecStruct*)hpDecoder;
+    unsigned char* temp_bufer = hDecoder->temp_bufer;
+    int temp_size = 0;
     faad_log_info("enter NeAACDecInit \r\n");
 #ifdef NEW_CODE_CHECK_LATM
     int i_frame_size;
-    if (buffer_size > sizeof(temp_bufer)) {
-        LATM_LOG("init input buffer size tooo big %d, buffer size %d \n", buffer_size, sizeof(temp_bufer));
-        buffer_size = sizeof(temp_bufer);
+    if (buffer_size > TMP_BUF_SIZE) {
+        LATM_LOG("init input buffer size too big %d, buffer size %d \n", buffer_size,TMP_BUF_SIZE);
+        //buffer_size = sizeof(temp_bufer);
+        buffer_size =  TMP_BUF_SIZE ;
     }
     if (buffer_size > 0) {
         memcpy(temp_bufer, buffer, buffer_size);
@@ -1697,6 +1696,10 @@ static void* aac_frame_decode(NeAACDecStruct *hDecoder,
     uint32_t startbit = 0, endbit = 0, payload_bits = 0;
     int b_multi_sub_frame;
     int mux_length = 0;
+    short* dec_buffer = hDecoder->dec_buffer;
+    short* output_buffer = hDecoder->output_buffer;
+    unsigned char* temp_bufer = hDecoder->temp_bufer;
+    int temp_size = 0;
 #ifdef NEW_CODE_CHECK_LATM
     int i_frame_size;
     decoder_sys_t *p_sys =  &hDecoder->dec_sys;
@@ -1737,9 +1740,10 @@ static void* aac_frame_decode(NeAACDecStruct *hDecoder,
         }
     }
 #ifdef NEW_CODE_CHECK_LATM
-    if (buffer_size > sizeof(temp_bufer)) {
-        LATM_LOG("input buffer size tooo big %d, buffer size %d \n", buffer_size, sizeof(temp_bufer));
-        buffer_size = sizeof(temp_bufer);
+    if (buffer_size > TMP_BUF_SIZE) {
+        LATM_LOG("input buffer size tooo big %d, buffer size %d \n", buffer_size,TMP_BUF_SIZE);
+        //buffer_size = sizeof(temp_bufer);
+        buffer_size =  TMP_BUF_SIZE;
     }
     if (buffer_size > 0) {
         memcpy(temp_bufer, buffer, buffer_size);

@@ -46,6 +46,9 @@ extern "C" {
 #define MAX_SFB             51
 #define MAX_LTP_SFB         40
 #define MAX_LTP_SFB_S        8
+#define DEC_BUF_SIZE        6 * 1024
+#define OUT_BUF_SIZE        8 * 1024
+#define TMP_BUF_SIZE        20 * 1024
 
     /* used to save the prediction state */
     typedef struct {
@@ -503,6 +506,9 @@ extern "C" {
 #endif
         int last_sf_index;
         int last_ch_configure;
+        short  dec_buffer[DEC_BUF_SIZE];
+        short output_buffer[OUT_BUF_SIZE];
+        unsigned char temp_bufer[TMP_BUF_SIZE];
     } NeAACDecStruct;
 
 

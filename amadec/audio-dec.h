@@ -104,6 +104,25 @@ typedef int (*fp_arm_omx_codec_get_FS)(aml_audio_dec_t*);
 typedef int (*fp_arm_omx_codec_get_Nch)(aml_audio_dec_t*);
 typedef int (*fp_arm_omx_codex_read_assoc_data)(aml_audio_dec_t *,unsigned char *, int, int *);
 
+typedef struct circle_buffer_s {
+    pthread_mutex_t lock;
+    unsigned char *start_add;
+    unsigned char *rd;
+    unsigned char *wr;
+    int size;
+}circle_buffer;
+
+typedef struct PtsNode_s {
+    unsigned long pts;
+    unsigned long write_offset;
+    struct PtsNode_s *next;
+} PtsNode;
+typedef struct PtsNode_List_s {
+    struct PtsNode_s *first;
+    int node_num;
+    struct PtsNode_s *current;
+    lock_t tslock;
+} PtsNode_List;
 
 struct aml_audio_dec {
     adec_state_t  state;
@@ -210,6 +229,11 @@ struct aml_audio_dec {
     buffer_stream_t *g_assoc_bst;
     fp_arm_omx_codex_read_assoc_data parm_omx_codec_read_assoc_data;
     int mixing_level;//def=50, mixing level between main and associate, [0,100]
+    circle_buffer buf;
+	int use_hardabuf;
+	unsigned long write_offset;
+    struct PtsNode_List_s pts_list;
+    unsigned char *pcm_buf_tmp;
 };
 
 //from amcodec
@@ -230,6 +254,7 @@ typedef struct {
     unsigned int has_video;
     int associate_dec_supported;//support associate or not
     int mixing_level;//def=50, mixing level between main and associate, [0,100]
+    int use_hardabuf;
 } arm_audio_info;
 
 typedef struct {

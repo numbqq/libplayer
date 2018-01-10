@@ -51,6 +51,10 @@ extern "C"
     int audio_get_format_supported(int format);
     int audio_set_associate_enable(void *handle, unsigned int enable);
     int audio_send_associate_data(void *handle, uint8_t *buf, size_t size);
+    int acodec_buffer_write(void *p,char* buffer, size_t bytes);
+    int get_abuf_state(void *p,struct buf_status *buf);
+	int checkin_pts(void *p, unsigned long pts);
+	int acodec_get_apts(void *p,unsigned long *pts);
 #ifdef  __cplusplus
 }
 #endif
