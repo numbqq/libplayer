@@ -75,30 +75,6 @@ typedef enum {
     PLAYER_DIVX_RENTAL_VIEW =   0x40003,
 } player_status;
 
-
-typedef enum {
-    DRM_LEVEL1     = 1,
-    DRM_LEVEL2     = 2,
-    DRM_LEVEL3     = 3,
-    DRM_NONE       = 4,
-} drm_level_t;
-
-typedef struct drm_info {
-    drm_level_t drm_level;
-    uint32_t drm_flag;
-    uint32_t drm_hasesdata;
-    uint32_t drm_priv;
-    uint32_t drm_pktsize;
-    uint32_t drm_pktpts;
-    uint32_t drm_phy;
-    uint32_t drm_vir;
-    uint32_t drm_remap;
-    uint32_t data_offset;
-    uint32_t extpad[8];
-} drminfo_t;
-
-
-
 typedef struct {
     int index;
     int id;
