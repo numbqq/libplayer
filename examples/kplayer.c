@@ -226,6 +226,7 @@ int main(int argc, char *argv[])
     int speed = 0;
     int tmpneedexit = 0;
     int ret = -1;
+    int flag = 1;
     media_info_t minfo;
     char tmpcommand[TMP_COMMAND_MAX];
     EMU_STEP tmpstep = EMU_STEP_MENU;
@@ -337,32 +338,35 @@ int main(int argc, char *argv[])
             break;
         case EMU_STEP_MENU:
             do {
-                printf(SCREEN_SPLITER);
-                printf("       	     player benchmark tool for android            v2.0\n");
-                printf(SCREEN_SPLITER);
-                printf("* Please choose one option                                 *\r\n");
-                printf("* 0   show main menu                                       *\r\n");
-                printf("* a   start play                                           *\r\n");
-                printf("* s   get media info                                       *\r\n");
-                printf("* 1   Pause play                                           *\r\n");
-                printf("* 2   Resume play                                          *\r\n");
-                printf("* 3   Stop play                                            *\r\n");
-                printf("* 4   Fastforward                                          *\r\n");
-                printf("* 5   Fastrewind                                       	   *\r\n");
-                printf("* 6   Seek                                             	   *\r\n");
-                printf("* 7   Set repeat                                           *\r\n");
-                printf("* 8   Quit tools                                           *\r\n");
-                printf(SCREEN_SPLITER);
-                printf("please input you choice:");
+                if (flag) {
+                    printf(SCREEN_SPLITER);
+                    printf("       	     player benchmark tool for android            v2.0\n");
+                    printf(SCREEN_SPLITER);
+                    printf("* Please choose one option                                 *\r\n");
+                    printf("* 0   show main menu                                       *\r\n");
+                    printf("* a   start play                                           *\r\n");
+                    printf("* s   get media info                                       *\r\n");
+                    printf("* 1   Pause play                                           *\r\n");
+                    printf("* 2   Resume play                                          *\r\n");
+                    printf("* 3   Stop play                                            *\r\n");
+                    printf("* 4   Fastforward                                          *\r\n");
+                    printf("* 5   Fastrewind                                       	   *\r\n");
+                    printf("* 6   Seek                                             	   *\r\n");
+                    printf("* 7   Set repeat                                           *\r\n");
+                    printf("* 8   Quit tools                                           *\r\n");
+                    printf(SCREEN_SPLITER);
+                    printf("please input you choice:");
+                }
+                flag = 1;
                 memset(tmpcommand, 0, TMP_COMMAND_MAX);
 
                 scanf("%s", tmpcommand);
-                if (strcmp(tmpcommand, "1") == 0) {
-                    tmpstep = EMU_STEP_PAUSE;
-                }
+
                 if (strcmp(tmpcommand, "0") == 0) {
                     sleep(1);
                     tmpstep = EMU_STEP_MENU;
+                } else if (strcmp(tmpcommand, "1") == 0) {
+                    tmpstep = EMU_STEP_PAUSE;
                 } else if (strcmp(tmpcommand, "2") == 0) {
                     tmpstep = EMU_STEP_RESUME;
                 } else if (strcmp(tmpcommand, "3") == 0) {
@@ -376,14 +380,14 @@ int main(int argc, char *argv[])
                 } else if (strcmp(tmpcommand, "7") == 0) {
                     tmpstep = EMU_STEP_SETLOOP;
                 } else if (strcmp(tmpcommand, "8") == 0) {
-
                     tmpstep = EMU_STEP_EXIT;
                 } else if (strcmp(tmpcommand, "a") == 0) {
                     tmpstep = EMU_STEP_START;
                 } else if (strcmp(tmpcommand, "s") == 0) {
                     tmpstep = EMU_STEP_GETAVMEDIAINFO;
+                } else {
+                    flag = 0;
                 }
-
             } while (0);
 
             break;
