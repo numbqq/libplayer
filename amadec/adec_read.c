@@ -33,7 +33,7 @@
 #define ASTREAM_ADDR "/sys/class/astream/astream-dev/uio0/maps/map0/addr"
 #define ASTREAM_SIZE "/sys/class/astream/astream-dev/uio0/maps/map0/size"
 #define ASTREAM_OFFSET "/sys/class/astream/astream-dev/uio0/maps/map0/offset"
-
+#define ADDR_OFFSET "/sys/class/astream/addr_offset"
 
 
 #define AIU_AIFIFO_CTRL                            0x1580
@@ -75,6 +75,7 @@ int uio_init(aml_audio_dec_t *audec)
     //  int phys_size;
     int phys_offset;
     //  volatile unsigned memmap;
+    int addr_offset;
 
 
     audec->fd_uio = open(ASTREAM_DEV, O_RDWR);
@@ -85,8 +86,10 @@ int uio_init(aml_audio_dec_t *audec)
     phys_start = get_num_infile(ASTREAM_ADDR);
     phys_size = get_num_infile(ASTREAM_SIZE);
     phys_offset = get_num_infile(ASTREAM_OFFSET);
+    addr_offset = get_num_infile(ADDR_OFFSET);
 
-    adec_print("add=%08x, size=%08x, offset=%08x\n", phys_start, phys_size, phys_offset);
+    adec_print("add=%08x, size=%08x, phy_offset=%08x, addr_offset=%d\n",
+       phys_start, phys_size, phys_offset, addr_offset);
 
     phys_size = (phys_size + pagesize - 1) & (~(pagesize - 1));
     memmap = mmap(NULL, phys_size, PROT_READ | PROT_WRITE, MAP_SHARED, audec->fd_uio, 0 * pagesize);
@@ -96,9 +99,8 @@ int uio_init(aml_audio_dec_t *audec)
         adec_print("map /dev/uio0 failed\n");
         return -1;
     }
-    if (phys_offset == 0) {
-        phys_offset = (AIU_AIFIFO_CTRL * 4) & (pagesize - 1);
-    }
+    if (phys_offset == 0)
+        phys_offset = ((AIU_AIFIFO_CTRL + addr_offset) << 2) & (pagesize - 1);
     reg_base = memmap + phys_offset;
     return 0;
 }
