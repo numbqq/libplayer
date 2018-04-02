@@ -1153,6 +1153,8 @@ int alsa_stop(struct aml_audio_dec* audec)
             printf("alsa_stop_raw return  error: %d\n", err);
         }
     }
+        pthread_mutex_unlock(&alsa_params->playback_mutex);
+        //playback loop acquire playback_mutex lock, move signal out of lock
         pthread_cond_signal(&alsa_params->playback_cond);
         amthreadpool_pthread_join(alsa_params->playback_tid, NULL);
         pthread_cond_destroy(&alsa_params->playback_cond);
@@ -1160,7 +1162,6 @@ int alsa_stop(struct aml_audio_dec* audec)
 
         snd_pcm_drop(alsa_params->handle);
         snd_pcm_close(alsa_params->handle);
-        pthread_mutex_unlock(&alsa_params->playback_mutex);
         pthread_mutex_destroy(&alsa_params->playback_mutex);
 
         free(alsa_params);
