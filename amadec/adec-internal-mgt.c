@@ -69,6 +69,7 @@ audio_type_t audio_type[] = {
     {ACODEC_FMT_ADPCM, "adpcm"},
     {ACODEC_FMT_WMAVOI, "wmavoi"},
     {ACODEC_FMT_DRA, "dra"},
+    {ACODEC_FMT_OPUS, "opus"},
     {ACODEC_FMT_NULL, "null"},
 
 };

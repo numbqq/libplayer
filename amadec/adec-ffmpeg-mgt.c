@@ -83,6 +83,7 @@ audio_lib_t audio_lib_list[] = {
     {ACODEC_FMT_EAC3,"libdcv.so"},
     {ACODEC_FMT_DTS,"libdtscore.so"},
 #endif
+    {ACODEC_FMT_OPUS, "libopus.so"},
     NULL
 } ;
 

@@ -84,6 +84,7 @@ typedef enum {
     AFORMAT_MPEG2  = 27,
     AFORMAT_WMAVOI = 28,
     AFORMAT_WMALOSSLESS =29,
+    AFORMAT_OPUS = 30,
     AFORMAT_UNSUPPORT ,
     AFORMAT_MAX
 
@@ -94,6 +95,7 @@ typedef enum {
 
 #define IS_AUIDO_NEED_EXT_INFO(afmt) ((afmt == AFORMAT_ADPCM) \
                                  ||(afmt == AFORMAT_VORBIS) \
+                                 ||(afmt == AFORMAT_OPUS) \
                                  ||(afmt == AFORMAT_WMA) \
                                  ||(afmt == AFORMAT_WMAPRO) \
                                  ||(afmt == AFORMAT_PCM_S16BE) \

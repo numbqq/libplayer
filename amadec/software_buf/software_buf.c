@@ -23,9 +23,9 @@ static inline int GetWriteSpace(unsigned char *WritePoint, unsigned char *ReadPo
     int bytes;
 
     if (WritePoint >= ReadPoint) {
-        bytes = buffer_size - (WritePoint - ReadPoint);
+        bytes = buffer_size - 1 - (WritePoint - ReadPoint);
     } else {
-        bytes = ReadPoint - WritePoint;
+        bytes = ReadPoint - WritePoint - 1;
     }
 
     if (bytes >= WRITE_MARGIN)

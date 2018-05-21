@@ -234,6 +234,9 @@ aformat_t audio_type_convert(enum CodecID id, pfile_type File_type)
     case CODEC_ID_DRA:
         format = AFORMAT_DRA;
         break;
+    case CODEC_ID_OPUS:
+        format = AFORMAT_OPUS;
+        break;
 
     default:
         format = AFORMAT_UNSUPPORT;

@@ -354,6 +354,7 @@ enum CodecID {
     CODEC_ID_DSD_MSBF    = MKBETAG('D','S','D','M'),
     CODEC_ID_DSD_LSBF_PLANAR = MKBETAG('D','S','D','1'),
     CODEC_ID_DSD_MSBF_PLANAR = MKBETAG('D','S','D','8'),
+    CODEC_ID_OPUS		 = MKBETAG('O','P','U','S'),
 
     /* subtitle codecs */
     CODEC_ID_DVD_SUBTITLE= 0x17000,

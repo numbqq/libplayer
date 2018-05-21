@@ -9,6 +9,7 @@ all:
 	-make -C liblpcm all
 	-make -C libraac all
 	-make -C libpcm all
+	-make -C libopus all
 	-make -C libamffmpegdec all
 install:
 	-make -C libmad install
@@ -21,6 +22,7 @@ install:
 	-make -C liblpcm install
 	-make -C libraac install
 	-make -C libpcm install
+	-make -C libopus install
 	-make -C libamffmpegdec install
 	cp  -rf  libeac3/libdcv.so $(TARGET_DIR)/usr/lib
 	cp  -rf  libdtscore/libdtscore.so $(TARGET_DIR)/usr/lib
@@ -35,6 +37,7 @@ clean:
 	-make -C liblpcm clean
 	-make -C libraac clean
 	-make -C libpcm clean
+	-make -C libopus clean
 	-make -C libamffmpegdec clean
 	-make -C libdtscore clean
 	rm  -rf  $(TARGET_DIR)/usr/lib/libdcv.so

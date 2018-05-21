@@ -313,6 +313,8 @@ struct adec_status {
 #define    ACODEC_FMT_MPEG1  26  //AFORMAT_MPEG-->mp3,AFORMAT_MPEG1-->mp1,AFROMAT_MPEG2-->mp2
 #define    ACODEC_FMT_MPEG2  27
 #define    ACODEC_FMT_WMAVOI 28
+#define    ACODEC_FMT_OPUS   30
+
 //audio output type
 
 #define    AUDIO_PCM_OUTPUT 0//output pcm data

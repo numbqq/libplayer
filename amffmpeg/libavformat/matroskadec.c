@@ -2400,6 +2400,8 @@ static int matroska_parse_frame(MatroskaDemuxContext *matroska,
 
     if (st->codec->codec_id == CODEC_ID_PRORES)
         offset = 8;
+    else if (st->codec->codec_id == CODEC_ID_OPUS)
+        offset = 2;
 
     pkt = av_mallocz(sizeof(AVPacket));
     /* XXX: prevent data copy... */
@@ -2416,6 +2418,11 @@ static int matroska_parse_frame(MatroskaDemuxContext *matroska,
     }
 
     memcpy(pkt->data + offset, pkt_data, pkt_size);
+
+    if (st->codec->codec_id == CODEC_ID_OPUS) {
+        pkt->data[0] = pkt_size&0xff;
+        pkt->data[1] = pkt_size>>8;
+    }
 
     if (pkt_data != data)
         av_freep(&pkt_data);

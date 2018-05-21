@@ -51,6 +51,7 @@ const CodecTags ff_mkv_codec_tags[]={
     {"A_TTA1"           , CODEC_ID_TTA},
     {"A_VORBIS"         , CODEC_ID_VORBIS},
     {"A_WAVPACK4"       , CODEC_ID_WAVPACK},
+    {"A_OPUS"           , CODEC_ID_OPUS},
 
     {"S_TEXT/UTF8"      , CODEC_ID_TEXT},
     {"S_TEXT/UTF8"      , CODEC_ID_SRT},
