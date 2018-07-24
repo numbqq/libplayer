@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
     int type = 0;
 
     if (argc < 3) {
-        printf("Usage: mp3player <filename> <type 0:mpeg 1:aac 2:AC3 3:EAC3>\n");
+        printf("Usage: mp3player <filename> <type 0:mpeg 1:aac 2:AC3 3:EAC3 4:dts>\n");
         return -1;
     }
 
@@ -56,6 +56,8 @@ int main(int argc, char *argv[])
        pcodec->audio_type = AFORMAT_AC3;
     } else if (type == 3) {
       pcodec->audio_type = AFORMAT_EAC3;
+    }else if (type == 4) {
+      pcodec->audio_type = AFORMAT_DTS;
     }
     //pcodec->audio_type = (type == 0) ? AFORMAT_MPEG : AFORMAT_AAC;
     pcodec->stream_type = STREAM_TYPE_ES_AUDIO;
