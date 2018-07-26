@@ -28,7 +28,15 @@
 #endif
 
 #define USE_INTERPOLATION
-
+#define   RESAMPLE_ENALBE  1
+#ifdef    RESAMPLE_ENALBE
+#define   MAXRATE 2
+#define   MINRATE 0.25/*up-resample need more buffer for output, make sure resample-process without overflow*/
+static int rate_check=0;
+static double arate=1.0;
+static int resample_enable=0;
+static unsigned char pcm_buffer[64 * 1024];
+#endif
 static snd_pcm_sframes_t (*readi_func)(snd_pcm_t *handle, void *buffer, snd_pcm_uframes_t size);
 static snd_pcm_sframes_t (*writei_func)(snd_pcm_t *handle, const void *buffer, snd_pcm_uframes_t size);
 static snd_pcm_sframes_t (*readn_func)(snd_pcm_t *handle, void **bufs, snd_pcm_uframes_t size);
@@ -38,6 +46,7 @@ static float  alsa_default_vol = 1.0;
 static int hdmi_out = 0;
 static int fragcount = 16;
 static snd_pcm_uframes_t chunk_size = 1024;
+
 #define   PERIOD_SIZE  1024
 #define   PERIOD_NUM    4
 
@@ -102,8 +111,27 @@ static int set_sysfs_type(const char *path, const char *type)
     }
     return ret;
 }
-
-
+#ifdef RESAMPLE_ENALBE
+static int
+gst_aoption_rate (double * rate)
+{
+    char *srate = NULL;
+    int ret = 0 ;
+    srate=getenv("media_gst_rate");
+    if (!srate)
+    {
+        return ret;
+    }
+    *rate = (double)(atof(srate));
+    if ( *rate != 1 && *rate <= MAXRATE && *rate >= MINRATE)
+    {
+        ret =(int) (*rate);
+        resample_enable = 1;
+        printf("playback audio resample -> *rate %f\n", *rate);
+    }
+    return ret;
+}
+#endif
 static void pcm_interpolation(int interpolation, unsigned num_channel, unsigned num_sample, short *samples)
 {
     int i, k, l, ch;
@@ -741,15 +769,18 @@ static int alsa_swtich_port(alsa_param_t *alsa_params, int card, int port)
 static void *alsa_playback_loop(void *args)
 {
     int len = 0;
-    int len2 = 0;
     int offset = 0;
     aml_audio_dec_t *audec;
     alsa_param_t *alsa_params;
     char value[PROPERTY_VALUE_MAX]={0};
     audec = (aml_audio_dec_t *)args;
     alsa_params = (alsa_param_t *)audec->aout_ops.private_data;
-    unsigned char *decode_buffer = alsa_params->decode_buffer;
-    unsigned char *buffer = (unsigned char *)(((unsigned long)decode_buffer + 32) & (~0x1f));
+    unsigned char *decode_buffer = (unsigned char *)(((unsigned long)alsa_params->decode_buffer + 32) & (~0x1f));
+    unsigned char *buffer = decode_buffer;
+#ifdef RESAMPLE_ENALBE
+    unsigned char *feed_buffer = pcm_buffer;
+    int feed_remain = 0;
+#endif
 
     // bootplayer default volume configuration
     if (property_get("media.amplayer.boot_vol",value,NULL) > 0) {
@@ -792,30 +823,48 @@ static void *alsa_playback_loop(void *args)
             adec_print("[%s,%d]get default device, use default device \n", __FUNCTION__, __LINE__);
         }
 #endif
-    while ((len < (128 * 2)) && (!alsa_params->stop_flag)) {
-            if (offset > 0) {
-                memcpy(buffer, buffer + offset, len);
-            }
-            len2 = audec->adsp_ops.dsp_read(&audec->adsp_ops, (buffer + len), (OUTPUT_BUFFER_SIZE - len));
-            len = len + len2;
-            offset = 0;
+      if (alsa_params->pause_flag) {
+        amthreadpool_thread_usleep(10000);
+        continue;
+      }
+      if (len < 128*2) {
+        if (offset > 0) {
+          if (len > 0) {
+            memmove(buffer, buffer + offset, len);
+          }
+          offset = 0;
         }
-        audec->pcm_bytes_readed += len;
-        while (alsa_params->pause_flag) {
-            amthreadpool_thread_usleep(10000);
+#ifdef RESAMPLE_ENALBE
+        if (buffer == feed_buffer) {
+          feed_remain = len;
+          len = 0;
+          buffer = decode_buffer;
         }
-        if (alsa_params->stop_flag) {
-            goto exit;
+#endif
+        int readlen = audec->adsp_ops.dsp_read(&audec->adsp_ops, (buffer + len),
+                                        (OUTPUT_BUFFER_SIZE - len));
+        if (readlen > 0) {
+          len += readlen;
+          audec->pcm_bytes_readed += readlen;
         }
-
-        len2 = alsa_play(alsa_params, (buffer + offset), len);
-        if (len2 >= 0) {
-            len -= len2;
-            offset += len2;
-        } else {
-            len = 0;
-            offset = 0;
-        }
+        continue;
+      }
+#ifdef RESAMPLE_ENALBE
+      if ((buffer != feed_buffer) && resample_enable && ((int)(arate * 1000) != 1000)) {
+        int resample_len = af_resample_in_buffer( buffer, len, feed_buffer+feed_remain, audec->channels, audec->samplerate, arate);
+        //printf("resample %d bytes, at rate %f, return %d bytes, offset %d\n", len, arate, resample_len, feed_remain);
+        buffer = feed_buffer;
+        len = resample_len + feed_remain;
+      }
+#endif
+      int feedlen = alsa_play(alsa_params, (buffer + offset), len);
+      if (feedlen >= 0) {
+        offset += feedlen;
+        len -= feedlen;
+      } else {
+        offset = 0;
+        len = 0;
+      }
     }
 exit:
 
@@ -841,6 +890,11 @@ int alsa_init(struct aml_audio_dec* audec)
     audio_out_operations_t *out_ops = &audec->aout_ops;
     int dgraw = amsysfs_get_sysfs_int("/sys/class/audiodsp/digital_raw");
     tv_mode = getprop_bool("ro.platform.has.tvuimode");
+#ifdef RESAMPLE_ENALBE
+    rate_check = 0;
+    arate = 1.0;
+    resample_enable = 0;
+#endif
     alsa_param = (alsa_param_t *)malloc(sizeof(alsa_param_t));
     if (!alsa_param) {
         adec_print("alloc alsa_param failed, not enough memory!");
@@ -1245,6 +1299,39 @@ static int alsa_mute(struct aml_audio_dec* audec, adec_bool_t en){
     }
     return 0;
 }
+
+#ifdef RESAMPLE_ENALBE
+static int alsa_set_track_rate(struct aml_audio_dec *audec, void *rate) {
+  int ratei = (int)rate;
+  resample_enable = 1;
+  if (ratei >= 2000000) {
+    ratei = 2000000;
+    arate = 2.0;
+  } else if (ratei >= 1500000) {
+    ratei = 1500000;
+    arate = 1.5;
+  } else if (ratei >= 1250000) {
+    ratei = 1250000;
+    arate = 1.25;
+  } else if (ratei >= 1000000) {
+    ratei = 1000000;
+    arate = 1.0;
+  } else if (ratei >= 500000) {
+    ratei = 500000;
+    arate = 0.5;
+  } else if (ratei >= 250000) {
+    ratei = 250000;
+    arate = 0.25;
+  } else {
+    ratei = 1;
+    arate = 1.0;
+    resample_enable = 0;
+  }
+  audec->aout_ops.track_rate = arate;
+  amsysfs_set_sysfs_int("/sys/class/video/vsync_slow_factor", ratei);
+}
+#endif
+
 /**
  * \brief get output handle
  * \param audec pointer to audec
@@ -1262,4 +1349,8 @@ void get_output_func(struct aml_audio_dec* audec)
     out_ops->set_volume = alsa_set_volume;
     out_ops->latency = alsa_latency;
     out_ops->track_rate = 8.8f;
+#ifdef RESAMPLE_ENALBE
+    out_ops->set_track_rate = alsa_set_track_rate;
+    amsysfs_set_sysfs_int("/sys/class/video/vsync_slow_factor", 1);
+#endif
 }

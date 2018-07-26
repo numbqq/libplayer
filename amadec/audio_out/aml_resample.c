@@ -34,6 +34,9 @@
 
 af_resampe_ctl_t af_resampler_ctx = {0};
 static int pcmfd = -1;
+static const double kPhaseMultiplier = 1L << 28;
+static const unsigned int kPhaseMask = (1LU << 28) - 1;
+
 static int get_sysfs_int(const char *path)
 {
     int fd;
@@ -204,8 +207,8 @@ static int pcrmaster_dsp_pcm_read(aml_audio_dec_t*audec, char *data_in, int len)
     return pcm_cnt_bytes;
 }
 
-
 void af_resample_api(char* buffer, unsigned int * size, int Chnum, aml_audio_dec_t* audec, int enable, int delta);
+void af_resample_api_new(char** buffer, unsigned int * size, int Chnum, aml_audio_dec_t* audec, int enable, double rate);
 
 void  af_pcrmaster_resample_api(char *buffer, unsigned int *size, int Chnum, aml_audio_dec_t *audec/*, int enable, int delta*/)
 {
@@ -467,10 +470,22 @@ void  af_resample_stop_process(af_resampe_ctl_t *paf_resampe_ctl)
     paf_resampe_ctl->LastResamType = 0;
     // adec_print("resample stop INIT_FLAG=%d\n",paf_resampe_ctl->InitFlag);
 }
-
+#define MAX_CHANNEL  8
 #define MAXCH_NUMBER 8
 #define MAXFRAMESIZE 8192
 short  date_temp[MAXCH_NUMBER*MAXFRAMESIZE];
+static int last_resample_enable = 0;
+static int last_delta = 0;
+struct resample_para {
+    unsigned int FractionStep;
+    unsigned int SampleFraction;
+    short lastsample[MAX_CHANNEL];
+    unsigned int input_sr;
+    unsigned int output_sr;
+    unsigned int channels;
+    unsigned int start_flag;
+};
+static struct resample_para  resampler;
 extern int android_reset_track(struct aml_audio_dec* audec);
 /**
  *  try to read as much data as len from dsp buffer
@@ -498,6 +513,100 @@ inline static short clip(int x) {
 
 
 #define  RESAMPLE_FRAMES  128
+static int resampler_init(struct resample_para *resample, int ch, int sr, int delta)
+{
+    resample->FractionStep = (unsigned int)((RESAMPLE_FRAMES + delta) * kPhaseMultiplier / RESAMPLE_FRAMES);
+    resample->SampleFraction = 0;
+    resample->start_flag = 0;
+    resample->channels = ch;
+    //adec_print("FractionStep %x\n", resample->FractionStep);
+    return 0;
+}
+
+static int resample_process(struct resample_para *resample, unsigned int in_frame, short* input, short* output)
+{
+    unsigned int inputIndex = 0;
+    unsigned int outputIndex = 0;
+    unsigned int FractionStep = resample->FractionStep;
+    unsigned int frac = resample->SampleFraction;
+    int ch = 0;
+    int ch_num = resample->channels;
+
+    while (inputIndex == 0) {
+        for (ch = 0; ch < ch_num; ch++) {
+            *output++ = clip((int) resample->lastsample[ch] +
+                             ((((int) input[ch] - (int) resample->lastsample[ch]) * ((int) frac >> 13)) >> 15));
+        }
+        frac += FractionStep;
+        inputIndex += (frac >> 28);
+        frac = (frac & kPhaseMask);
+        outputIndex++;
+
+    }
+
+    while (inputIndex < in_frame) {
+        for (ch = 0; ch < ch_num; ch++) {
+            *output++ = clip((int) input[ch_num * (inputIndex - 1) + ch] + ((((int) input[ch_num * inputIndex + ch]
+                             - (int) input[ch_num * (inputIndex - 1) + ch]) * ((int) frac >> 13)) >> 15));
+        }
+        frac += FractionStep;
+        inputIndex += (frac >> 28);
+        frac = (frac & kPhaseMask);
+        outputIndex++;
+
+    }
+    for (ch = 0; ch < ch_num; ch++) {
+        resample->lastsample[ch] = input[ch_num * (in_frame - 1) + ch];
+    }
+    resample->SampleFraction = frac;
+    return outputIndex;
+}
+
+unsigned int af_resample_in_buffer(char* inbuffer, unsigned int insize, char * outbuf, int Chnum, int samplerate, double rate)
+{
+    int read_bytes = insize;
+    short *pbuf = (short*)outbuf;
+    int out_frame = 0;
+    int frame_size = 2 * Chnum;
+    int delta = 0;
+    char* read_from_buf = inbuffer;
+    int retsize = 0;
+
+    if (read_from_buf == NULL)
+        goto exit;
+
+    if (rate == 2.0)
+        delta = 128; /* rate 2.0*/
+    else if (rate == 1.5)
+        delta = 64;  /* rate 1.5*/
+    else if (rate == 1.25)
+        delta = 32;  /* rate 1.25*/
+    else if (rate == 0.5)
+        delta = -64; /* rate 0.5*/
+    else if (rate == 0.25)
+        delta = -96; /* rate 0.25*/
+    else
+        goto exit;
+
+    if (last_delta != delta) {
+        printf("audio resample changed: delta %d,Chnum %d!\n", delta, Chnum);
+        last_delta = delta;
+        resampler_init(&resampler, Chnum, samplerate, delta);
+    }
+    if (read_bytes % frame_size) {
+        printf("warning read size  before src not frame align %d\n", read_bytes);
+        goto exit;
+    }
+    if (read_bytes > 0) {
+       out_frame = resample_process(&resampler, read_bytes / frame_size,
+                                     read_from_buf, pbuf);
+        retsize =  out_frame * frame_size;
+    }
+exit:
+    //adec_print("require size %d, got size %d,readed from buf %d,align %d %d \n",req_size,*size,read_bytes,req_size%frame_size,*size%frame_size);
+    return retsize;
+}
+
 void af_resample_api(char* buffer, unsigned int * size, int Chnum, aml_audio_dec_t* audec, int enable, int delta)
 {
     short data_in[RESAMPLE_FRAMES * 2];

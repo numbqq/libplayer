@@ -84,6 +84,10 @@ int af_set_resample_type(int val);
 
 void  af_pcrmaster_resample_api(char *buffer, unsigned int *size, int Chnum, aml_audio_dec_t *audec/*, int enable, int delta*/);
 
+// outbuf shall be larger than insize / rate, and the address shall be aligned to 8 bytes
+// return num bytes written in outbuf
+unsigned int af_resample_in_buffer(char* inbuffer, unsigned int insize, char * outbuf, int Chnum, int samplerate, double rate);
+
 #endif
 
 
