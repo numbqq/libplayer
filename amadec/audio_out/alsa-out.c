@@ -1198,7 +1198,7 @@ static int alsa_get_space(alsa_param_t * alsa_param)
 unsigned long alsa_latency(struct aml_audio_dec* audec)
 {
     int buffered_data;
-    int sample_num;
+    snd_pcm_sframes_t sample_num;
     alsa_param_t *alsa_param = (alsa_param_t *)audec->aout_ops.private_data;
     int bits_per_sample = alsa_param->bits_per_sample;
     if (tv_mode) {
