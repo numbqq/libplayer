@@ -1069,9 +1069,13 @@ int alsa_pause(struct aml_audio_dec* audec)
         return err;
     }
     alsa_params = (alsa_param_t *)audec->aout_ops.private_data;
+    // pcm_write will lock and unlock the mutex in a busy loop
+    // in that case this thread do not have much chance to lock the mutex
+    // sometime it will take 2~30 seconds to acquire the lock
+    // move pause_flag outside of the lock can notify pcm_write immediately
+    alsa_params->pause_flag = 1;
     pthread_mutex_lock(&alsa_params->playback_mutex);
 
-    alsa_params->pause_flag = 1;
     while ((res = snd_pcm_pause(alsa_params->handle, 1)) == -EAGAIN) {
         sleep(1);
     }
