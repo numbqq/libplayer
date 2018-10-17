@@ -10,7 +10,9 @@ all:
 	-$(MAKE) -C amffmpeg all		
 	-$(MAKE) -C amffmpeg install
 	-$(MAKE) -C amcodec all
-	-$(MAKE) -C amcodec install	
+	-$(MAKE) -C amcodec install
+	-$(MAKE) -C amvdec all
+	-$(MAKE) -C amvdec install
 	-$(MAKE) -C audio_codec all
 	-$(MAKE) -C audio_codec install
 	-$(MAKE) -C amplayer all

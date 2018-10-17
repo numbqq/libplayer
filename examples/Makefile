@@ -7,10 +7,12 @@ INC_DIR=$(LIBPLAYER_STAGING_DIR)/usr/include
 CROSS=$(CC:%gcc=%)
 
 kplayer_s=kplayer.c
+ionplayer_s=ionplayer.c
 
 INSTALL_FLAGS=-m 755
 
-TARGET=kplayer
+TARGET1=kplayer
+TARGET2=ionplayer
 
 LDFLAGS= -L$(PREFIX)/lib/libplayer -lavutil -lavformat -lavcodec -lm -lz -lpthread -lamcodec -ldl -lamplayer -lamadec -lasound -lamstreaming  -lamavutils -lrt -lstdc++
 CFLAGS+= -I${BUILD_DIR}/../amffmpeg -I${BUILD_DIR}/../amcodec/include -I${BUILD_DIR}/../amadec/include 
@@ -29,10 +31,11 @@ endif
 
 .PHONY: all config  before_cmd install clean distclean
 
-all: ${TARGET}
+all: ${TARGET1} ${TARGET2}
 	mkdir -p $(TARGET_DIR)/../lib/firmware
 install:all
-	install $(INSTALL_FLAGS) $(TARGET) $(TARGET_DIR)/bin
+	install $(INSTALL_FLAGS) $(TARGET1) $(TARGET_DIR)/bin
+	install $(INSTALL_FLAGS) $(TARGET2) $(TARGET_DIR)/bin
 	cp -rf $(LIB_DIR)/*.so* $(TARGET_DIR)/lib
       
 distclean:clean
@@ -40,5 +43,9 @@ distclean:clean
 clean:
 	rm $(TARGET_DIR)/bin/$(TARGET)
 
-${TARGET}:kplayer.o
+${TARGET1}:kplayer.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $($(@:%=%_s)) -o $@
+
+${TARGET2}:ionplayer.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -lamvdec $($(@:%=%_s)) -o $@
+
