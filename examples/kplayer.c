@@ -190,8 +190,46 @@ static int set_osd_blank(int blank)
     char *path1 = "/sys/class/graphics/fb0/blank";
     char *path2 = "/sys/class/graphics/fb1/blank";
 
-    amsysfs_set_sysfs_str(path1, blank ? "1" : "0");
-    amsysfs_set_sysfs_str(path2, blank ? "1" : "0");
+    char *fb_stat0 = "/sys/class/graphics/fb0/osd_status";
+    char *fb_stat1 = "/sys/class/graphics/fb1/osd_status";
+
+    static int fb0_enable = -1;
+    static int fb1_enable = -1;
+    char fb_osd_status[32]="";
+
+    if (fb0_enable == -1)
+    {
+        fb_osd_status[0]='\0';
+        if (amsysfs_get_sysfs_str(fb_stat0, fb_osd_status, 32) == 0)
+        {
+            if (strstr(fb_osd_status, "enable: 1"))
+                fb0_enable = 1;
+            else
+                fb0_enable = 0;
+        }
+        else
+            fb0_enable = 1; //In case the osd_status node not exist
+
+    }
+    if (fb1_enable == -1)
+    {
+        fb_osd_status[0]='\0';
+        if (amsysfs_get_sysfs_str(fb_stat1, fb_osd_status, 32) == 0)
+        {
+            if (strstr(fb_osd_status, "enable: 1"))
+                fb1_enable = 1;
+            else
+                fb1_enable = 0;
+        }
+        else
+            fb1_enable = 1; //In case the osd_status node not exist
+    }
+
+    if (fb0_enable)
+        amsysfs_set_sysfs_str(path1, blank ? "1" : "0");
+
+    if (fb1_enable)
+        amsysfs_set_sysfs_str(path2, blank ? "1" : "0");
     return 0;
 }
 
