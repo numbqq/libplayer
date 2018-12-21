@@ -180,7 +180,11 @@ struct aml_audio_dec {
     int fd_uio;
     int last_valid_pts;
     int out_len_after_last_valid_pts;
+    int render_position;
+    int use_render_add;
     int pcm_cache_size;
+    int alsa_cache_size;
+    int decode_sum_size;
     Package_List pack_list;
     StartCode start_code;
 
@@ -230,8 +234,8 @@ struct aml_audio_dec {
     fp_arm_omx_codex_read_assoc_data parm_omx_codec_read_assoc_data;
     int mixing_level;//def=50, mixing level between main and associate, [0,100]
     circle_buffer buf;
-	int use_hardabuf;
-	unsigned long write_offset;
+    int use_hardabuf;
+    unsigned long write_offset;
     struct PtsNode_List_s pts_list;
     unsigned char *pcm_buf_tmp;
 };

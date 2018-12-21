@@ -60,6 +60,8 @@ static short pass1_interpolation_output[0x4000];
 static short interpolation_output[0x8000];
 #pragma align_to(64,interpolation_output)
 static int tv_mode = 0;
+unsigned long alsa_latency(struct aml_audio_dec* audec);
+
 static int getprop_bool(const char * path)
 {
     char buf[PROPERTY_VALUE_MAX];
@@ -777,6 +779,7 @@ static void *alsa_playback_loop(void *args)
     alsa_params = (alsa_param_t *)audec->aout_ops.private_data;
     unsigned char *decode_buffer = (unsigned char *)(((unsigned long)alsa_params->decode_buffer + 32) & (~0x1f));
     unsigned char *buffer = decode_buffer;
+    audec->render_position = 0;
 #ifdef RESAMPLE_ENALBE
     unsigned char *feed_buffer = pcm_buffer;
     int feed_remain = 0;
@@ -823,7 +826,7 @@ static void *alsa_playback_loop(void *args)
             adec_print("[%s,%d]get default device, use default device \n", __FUNCTION__, __LINE__);
         }
 #endif
-      if (alsa_params->pause_flag) {
+      if (alsa_params->pause_flag || !audec->apts_start_flag) {
         amthreadpool_thread_usleep(10000);
         continue;
       }
@@ -861,6 +864,13 @@ static void *alsa_playback_loop(void *args)
       if (feedlen >= 0) {
         offset += feedlen;
         len -= feedlen;
+        //audec->alsa_cache_size = len / arate;
+        audec->render_position += feedlen *arate / (alsa_params->bits_per_frame /4);
+        if (audec->render_position / alsa_params->rate - alsa_latency(audec) > 0) {
+            audec->apts64 = (audec->render_position / alsa_params->rate - alsa_latency(audec)) * 90;
+        } else {
+            audec->apts64 = 0;
+        }
       } else {
         offset = 0;
         len = 0;
@@ -891,9 +901,13 @@ int alsa_init(struct aml_audio_dec* audec)
     int dgraw = amsysfs_get_sysfs_int("/sys/class/audiodsp/digital_raw");
     tv_mode = getprop_bool("ro.platform.has.tvuimode");
 #ifdef RESAMPLE_ENALBE
-    rate_check = 0;
-    arate = 1.0;
-    resample_enable = 0;
+    int ratei = out_ops->track_rate * 1000000;
+    if (ratei == 8800000) {
+      arate = 1.0;
+      resample_enable = 0;
+    } else {
+      out_ops->set_track_rate(audec, (void*)ratei);
+    }
 #endif
     alsa_param = (alsa_param_t *)malloc(sizeof(alsa_param_t));
     if (!alsa_param) {
@@ -1263,7 +1277,7 @@ unsigned long alsa_latency(struct aml_audio_dec* audec)
         bits_per_sample = bits_per_sample*4;
     }
 #if 0
-   // buffered_data = alsa_param->buffer_size - alsa_get_space(alsa_param);
+    //buffered_data = alsa_param->buffer_size - alsa_get_space(alsa_param);
     //sample_num = buffered_data / (alsa_param->channelcount * (bits_per_sample / 8)); /*16/2*/
 #else
     int ret = snd_pcm_delay(alsa_param->handle,&sample_num);

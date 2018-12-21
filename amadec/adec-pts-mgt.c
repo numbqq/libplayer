@@ -159,7 +159,7 @@ int adec_pts_start(aml_audio_dec_t *audec)
     int tsync_mode;
     unsigned long first_apts = 0;
 
-    adec_print("adec_pts_start");
+    adec_print("adec_pts_start !!! \n");
     dsp_ops = &audec->adsp_ops;
     memset(buf, 0, sizeof(buf));
 
@@ -183,7 +183,11 @@ int adec_pts_start(aml_audio_dec_t *audec)
 
 
     dsp_ops->last_pts_valid = 0;
-
+    if (property_get("media.amadec.use.renderadd", value, NULL) > 0) {
+        audec->use_render_add = 1;
+    } else {
+        audec->use_render_add = 0;
+    }
     //default enable drop pcm
     int enable_drop_pcm = 1;
     if (property_get("sys.amplayer.drop_pcm", value, NULL) > 0) {
@@ -495,10 +499,12 @@ int adec_refresh_pts(aml_audio_dec_t *audec)
     int samplerate = 48000;
     int channels = 2;
     char buf[64];
+    char value[PROPERTY_VALUE_MAX] = {0};
     char ret_val = -1;
     if (audec->auto_mute == 1) {
         return 0;
     }
+    //adec_print("drop_frame_count:%d \n",mysysfs_get_sysfs_int("/sys/module/amvideo/parameters/drop_frame_count"));
     if (pre_filltime == -1) {
         char value[PROPERTY_VALUE_MAX] = {0};
         if (property_get("media.amadec.prefilltime", value, NULL) > 0) {
@@ -538,9 +544,14 @@ int adec_refresh_pts(aml_audio_dec_t *audec)
     }
 
     /* get audio time stamp */
-    pts = adec_calc_pts(audec);
+    if (audec->use_render_add) {
+        pts = audec->first_apts + audec->apts64;
+    } else {
+        pts = adec_calc_pts(audec);
+    }
+
     if (pts != -1 && (apts_start_flag != audec->apts_start_flag)) {
-        adec_print("audio pts start from 0x%lx", pts);
+        adec_print("audio pts start from 0x%lx \n", pts);
         sprintf(buf, "AUDIO_START:0x%lx", pts);
         if (amsysfs_set_sysfs_str(TSYNC_EVENT, buf) == -1) {
             return -1;
