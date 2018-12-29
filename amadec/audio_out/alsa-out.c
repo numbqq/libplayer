@@ -826,7 +826,8 @@ static void *alsa_playback_loop(void *args)
             adec_print("[%s,%d]get default device, use default device \n", __FUNCTION__, __LINE__);
         }
 #endif
-      if (alsa_params->pause_flag || !audec->apts_start_flag) {
+      if (alsa_params->pause_flag ||
+          (audec->use_render_add && !audec->apts_start_flag)) {
         amthreadpool_thread_usleep(10000);
         continue;
       }
