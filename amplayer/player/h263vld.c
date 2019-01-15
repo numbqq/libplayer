@@ -9,6 +9,7 @@
 
 
 #include "h263vld.h"
+#include "log_print.h"
 
 static unsigned int msk[33] = {
     0x00000000, 0x00000001, 0x00000003, 0x00000007,
@@ -196,7 +197,16 @@ VLCtab DCT3Dtab2[] = {
 
 int roundtab[16] = {0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2};
 
-int top_mv[90][2], left_mv[2][2], mv[4][2];
+/***************************************************
+top_mv[x][2]:
+    x = 2 * floor((pic_width + 15) / 16)
+
+support 1408x1152:	x = 176
+support 1280x720:   	x = 160
+support 720x576:     	x = 90
+***************************************************/
+int top_mv[176][2], left_mv[2][2], mv[4][2];
+
 
 unsigned int showbits(int n, int byte_index, int bit_index, unsigned char *buf)
 {
@@ -542,6 +552,8 @@ int h263vld(unsigned char *inbuf, unsigned char *outbuf, int inbuf_len, int s263
 
     mb_width = (width + 15) / 16;
     mb_height = (height + 15) / 16;
+    if (mb_width > 176)
+        log_error("ERROR:top_mv size is over\n");
 
     for (k = 0 ; k < mb_width * 2 ; k++)
         for (comp = 0 ; comp < 2 ; comp++) {
