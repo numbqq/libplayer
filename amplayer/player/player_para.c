@@ -246,9 +246,13 @@ static void get_av_codec_type(play_para_t *p_para)
             }
             if (VIDEO_DEC_FORMAT_MPEG4_3 == p_para->vstream_info.video_codec_type) {
                 if (pCodecCtx->height > 720) {
-                    log_print("[%s:%d]DIVX3 can not support upper 720p\n", __FUNCTION__, __LINE__);
+                    log_print("[%s:%d]can not support upper 720p\n", __FUNCTION__, __LINE__);
                     p_para->vstream_info.has_video = 0;
                 }
+            }
+            if ((VIDEO_DEC_FORMAT_MPEG4_3 == p_para->vstream_info.video_codec_type || VIDEO_DEC_FORMAT_MPEG4_4 == p_para->vstream_info.video_codec_type)) {
+                log_print("[%s:%d] not support\n", __FUNCTION__, __LINE__);
+                p_para->vstream_info.has_video = 0;
             }
         } else if (p_para->vstream_info.video_format == VFORMAT_H264) {
             if ((p_para->pFormatCtx) && (p_para->pFormatCtx->pb) && (p_para->pFormatCtx->pb->local_playback == 1)) {

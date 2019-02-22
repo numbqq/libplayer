@@ -303,43 +303,6 @@ static int mjpeg_write_header(play_para_t *para)
     return PLAYER_SUCCESS;
 }
 /*************************************************************************/
-static int divx3_data_prefeeding(am_packet_t *pkt, unsigned w, unsigned h)
-{
-    unsigned i = (w << 12) | (h & 0xfff);
-    unsigned char divx311_add[10] = {
-        0x00, 0x00, 0x00, 0x01,
-        0x20, 0x00, 0x00, 0x00,
-        0x00, 0x00
-    };
-    divx311_add[5] = (i >> 16) & 0xff;
-    divx311_add[6] = (i >> 8) & 0xff;
-    divx311_add[7] = i & 0xff;
-
-    if (pkt->hdr->data) {
-        MEMCPY(pkt->hdr->data, divx311_add, sizeof(divx311_add));
-        pkt->hdr->size = sizeof(divx311_add);
-    } else {
-        log_print("[divx3_data_prefeeding]No enough memory!\n");
-        return PLAYER_FAILED;
-    }
-    return PLAYER_SUCCESS;
-}
-
-static int divx3_write_header(play_para_t *para)
-{
-    am_packet_t *pkt = para->p_pkt;
-    divx3_data_prefeeding(pkt, para->vstream_info.video_width, para->vstream_info.video_height);
-    if (para->vcodec) {
-        pkt->codec = para->vcodec;
-    } else {
-        log_print("[divx3_write_header]invalid codec!");
-        return PLAYER_EMPTY_P;
-    }
-    pkt->avpkt_newflag = 1;
-    write_av_packet(para);
-    return PLAYER_SUCCESS;
-}
-/*************************************************************************/
 static int h264_add_header(unsigned char *buf, int size,  am_packet_t *pkt)
 {
     char nal_start_code[] = {0x0, 0x0, 0x0, 0x1};
@@ -1230,12 +1193,6 @@ int pre_header_feeding(play_para_t *para)
             if (ret != PLAYER_SUCCESS) {
                 return ret;
             }
-        } else if ((VFORMAT_MPEG4 == para->vstream_info.video_format) &&
-                   (VIDEO_DEC_FORMAT_MPEG4_3 == para->vstream_info.video_codec_type)) {
-            ret = divx3_write_header(para);
-            if (ret != PLAYER_SUCCESS) {
-                return ret;
-            }
         } else if ((VFORMAT_H264 == para->vstream_info.video_format) || (VFORMAT_H264MVC == para->vstream_info.video_format) || (VFORMAT_H264_4K2K == para->vstream_info.video_format)) {
             ret = h264_write_header(para);
             if (ret != PLAYER_SUCCESS) {
@@ -1516,47 +1473,6 @@ int vp9_update_frame_header(am_packet_t *pkt)
        }
        old_header = fdata;
     }
-    return PLAYER_SUCCESS;
-}
-
-int divx3_prefix(am_packet_t *pkt)
-{
-#define DIVX311_CHUNK_HEAD_SIZE 13
-    const unsigned char divx311_chunk_prefix[DIVX311_CHUNK_HEAD_SIZE] = {
-        0x00, 0x00, 0x00, 0x01, 0xb6, 'D', 'I', 'V', 'X', '3', '.', '1', '1'
-    };
-    if ((pkt->hdr != NULL) && (pkt->hdr->data != NULL)) {
-        FREE(pkt->hdr->data);
-        pkt->hdr->data = NULL;
-    }
-
-    if (pkt->hdr == NULL) {
-        pkt->hdr = MALLOC(sizeof(hdr_buf_t));
-        if (!pkt->hdr) {
-            log_print("[divx3_prefix] NOMEM!");
-            return PLAYER_FAILED;
-        }
-
-        pkt->hdr->data = NULL;
-        pkt->hdr->size = 0;
-    }
-
-    pkt->hdr->data = MALLOC(DIVX311_CHUNK_HEAD_SIZE + 4);
-    if (pkt->hdr->data == NULL) {
-        log_print("[divx3_prefix] NOMEM!");
-        return PLAYER_FAILED;
-    }
-
-    MEMCPY(pkt->hdr->data, divx311_chunk_prefix, DIVX311_CHUNK_HEAD_SIZE);
-
-    pkt->hdr->data[DIVX311_CHUNK_HEAD_SIZE + 0] = (pkt->data_size >> 24) & 0xff;
-    pkt->hdr->data[DIVX311_CHUNK_HEAD_SIZE + 1] = (pkt->data_size >> 16) & 0xff;
-    pkt->hdr->data[DIVX311_CHUNK_HEAD_SIZE + 2] = (pkt->data_size >>  8) & 0xff;
-    pkt->hdr->data[DIVX311_CHUNK_HEAD_SIZE + 3] = pkt->data_size & 0xff;
-
-    pkt->hdr->size = DIVX311_CHUNK_HEAD_SIZE + 4;
-    pkt->avpkt_newflag = 1;
-
     return PLAYER_SUCCESS;
 }
 

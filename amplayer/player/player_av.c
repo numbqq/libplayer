@@ -350,7 +350,7 @@ vdec_type_t video_codec_type_convert(unsigned int id)
     case CODEC_TAG_COL1:
     case CODEC_TAG_DIV3:
     case CODEC_TAG_MP43:
-        log_print("VIDEO_TYPE_DIVX311\n");
+        log_print("VIDEO_TYPE_311\n");
         dec_type = VIDEO_DEC_FORMAT_MPEG4_3;
         break;
 
@@ -363,9 +363,11 @@ vdec_type_t video_codec_type_convert(unsigned int id)
         break;
 
         // divx5
-    case CODEC_ID_MSMPEG4V2:
     case CODEC_TAG_DIV5:
     case CODEC_TAG_DX50:
+        dec_type = VIDEO_DEC_FORMAT_MPEG4_4;
+        break;
+    case CODEC_ID_MSMPEG4V2:
     case CODEC_TAG_M4S2:
     case CODEC_TAG_FMP4:
     case CODEC_TAG_FVFW:
@@ -2821,9 +2823,7 @@ int set_header_info(play_para_t *para)
                     }
                 }
             } else if (para->vstream_info.video_format == VFORMAT_MPEG4) {
-                if (para->vstream_info.video_codec_type == VIDEO_DEC_FORMAT_MPEG4_3) {
-                    return divx3_prefix(pkt);
-                } else if (para->vstream_info.video_codec_type == VIDEO_DEC_FORMAT_H263) {
+                if (para->vstream_info.video_codec_type == VIDEO_DEC_FORMAT_H263) {
                     unsigned char *vld_buf;
                     int vld_len, vld_buf_size = para->vstream_info.video_width * para->vstream_info.video_height * 2;
 
