@@ -90,6 +90,7 @@ typedef enum {
     VFORMAT_H264_ENC,
     VFORMAT_JPEG_ENC,
     VFORMAT_VP9,
+    VFORMAT_AVS2,
 
 /*add new here before.*/
     VFORMAT_MAX,
