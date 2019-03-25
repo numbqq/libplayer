@@ -24,8 +24,12 @@ install:
 	-make -C libpcm install
 	-make -C libopus install
 	-make -C libamffmpegdec install
-	cp  -rf  libeac3/libdcv.so $(TARGET_DIR)/usr/lib
-	cp  -rf  libdtscore/libdtscore.so $(TARGET_DIR)/usr/lib
+	if [ "$(ARCH)" = "arm" ] ; then \
+		cp  -rf  libeac3/libdcv.so $(TARGET_DIR)/usr/lib; \
+		cp  -rf  libdtscore/libdtscore.so $(TARGET_DIR)/usr/lib; \
+	else \
+		echo "No 64bit Dobly libraries available."; \
+	fi
 clean:
 	-make -C libmad clean
 	-make -C libadpcm clean
