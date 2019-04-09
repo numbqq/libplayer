@@ -223,12 +223,20 @@ struct buf_status {
 
 
 #define DECODER_ERROR_MASK  (0xffff<<16)
+
+enum E_ASPECT_RATIO {
+    ASPECT_RATIO_4_3,
+    ASPECT_RATIO_16_9,
+    ASPECT_UNDEFINED = 255
+};
+
 struct vdec_status {
     unsigned int width;
     unsigned int height;
     unsigned int fps;
     unsigned int error_count;
     unsigned int status;
+	enum E_ASPECT_RATIO euAspectRatio;
 };
 
 struct adec_status {
