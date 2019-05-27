@@ -35,6 +35,7 @@ struct tvp_region
 extern int tvp_mm_enable(int flags);
 extern int tvp_mm_disable(int flags);
 extern int tvp_mm_get_mem_region(struct tvp_region* region, int region_size);
+extern int tvp_mm_get_enable();
 extern int free_cma_buffer(void);
 
 

@@ -193,4 +193,19 @@ int tvp_mm_get_mem_region(struct tvp_region* region, int region_size)
     return -1;
 }
 
+int tvp_mm_get_enable()
+{
+    int fd, len;
+    char buf[BUF_LEN];
+    int flag = -1;
+    fd = open(TVP_ENABLE_PATH, O_RDONLY);
+    if (fd >= 0) {
+        len = read(fd, buf, BUF_LEN);
+        close(fd);
+        if (1 != sscanf(buf, "tvp_flag=%d\n", &flag)) {
+            flag = 0xFF; /*compat with old kernel */
+        }
+    }
+    return flag;
+}
 
