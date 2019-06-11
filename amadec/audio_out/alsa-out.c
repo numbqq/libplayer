@@ -30,12 +30,17 @@
 #define USE_INTERPOLATION
 #define   RESAMPLE_ENALBE  1
 #ifdef    RESAMPLE_ENALBE
+#include "libsoundtouchcwrap.h"
+#include <dlfcn.h>
 #define   MAXRATE 2
 #define   MINRATE 0.25/*up-resample need more buffer for output, make sure resample-process without overflow*/
 static int rate_check=0;
 static double arate=1.0;
+static int rate_1000=1000;
 static int resample_enable=0;
 static unsigned char pcm_buffer[64 * 1024];
+static CSoundTouchSymbols * g_sound_touch_class = NULL;
+static CSoundTouch * g_sound_touch = NULL;
 #endif
 static snd_pcm_sframes_t (*readi_func)(snd_pcm_t *handle, void *buffer, snd_pcm_uframes_t size);
 static snd_pcm_sframes_t (*writei_func)(snd_pcm_t *handle, const void *buffer, snd_pcm_uframes_t size);
@@ -783,6 +788,16 @@ static void *alsa_playback_loop(void *args)
 #ifdef RESAMPLE_ENALBE
     unsigned char *feed_buffer = pcm_buffer;
     int feed_remain = 0;
+    int st_rate_1000 = 0;
+    int resample_done = 1;
+    if (g_sound_touch_class == NULL) {
+        void * dlhandle = dlopen("libsoundtouchcwrap.so", RTLD_NOW);
+        if (dlhandle != NULL) {
+            g_sound_touch_class = (CSoundTouchSymbols*)dlsym(dlhandle, "sound_touch_c_wrapper");
+            if (g_sound_touch_class)
+                g_sound_touch = g_sound_touch_class->construct();
+        }
+    }
 #endif
 
     // bootplayer default volume configuration
@@ -803,6 +818,7 @@ static void *alsa_playback_loop(void *args)
 
     adec_print("alsa playback loop start to run !\n");
 
+    int feedlen;
     while (!alsa_params->stop_flag) {
 #if 0
     if (hdmi_out == 0) {
@@ -831,7 +847,9 @@ static void *alsa_playback_loop(void *args)
         amthreadpool_thread_usleep(10000);
         continue;
       }
+      // there's very few data in feed buffer, read more data
       if (len < 128*2) {
+        // adjust the buffer, move the remain data to the beginning of the buffer
         if (offset > 0) {
           if (len > 0) {
             memmove(buffer, buffer + offset, len);
@@ -839,10 +857,17 @@ static void *alsa_playback_loop(void *args)
           offset = 0;
         }
 #ifdef RESAMPLE_ENALBE
+        // make sure we read data to decode_buffer
         if (buffer == feed_buffer) {
+          // store the remain length of feeding data to feed_remain
+          // we'll use len to store the data length in decode_buffer
           feed_remain = len;
           len = 0;
           buffer = decode_buffer;
+          if (!resample_done) {
+              // previous resample buffer full, need to continue resampling
+              goto resample;
+          }
         }
 #endif
         int readlen = audec->adsp_ops.dsp_read(&audec->adsp_ops, (buffer + len),
@@ -854,14 +879,55 @@ static void *alsa_playback_loop(void *args)
         continue;
       }
 #ifdef RESAMPLE_ENALBE
-      if ((buffer != feed_buffer) && resample_enable && ((int)(arate * 1000) != 1000)) {
-        int resample_len = af_resample_in_buffer( buffer, len, feed_buffer+feed_remain, audec->channels, audec->samplerate, arate);
-        //printf("resample %d bytes, at rate %f, return %d bytes, offset %d\n", len, arate, resample_len, feed_remain);
-        buffer = feed_buffer;
-        len = resample_len + feed_remain;
+resample:
+      if (buffer != feed_buffer) {
+          // simple case, no resample, or aml resample
+          if ((g_sound_touch == NULL) || ((rate_1000 == 1000) && (st_rate_1000 == 0))) {
+              if (rate_1000 != 1000) {
+                  // sound touch is unavailable, use aml resample, bad quality
+                  int resample_len = af_resample_in_buffer( buffer, len, feed_buffer + feed_remain, audec->channels, audec->samplerate, arate);
+                  // printf("resample %d bytes, at rate %f, return %d bytes, offset %d\n", len, arate, resample_len, feed_remain);
+                  buffer = feed_buffer;
+                  len = resample_len + feed_remain;
+              }
+              goto feed_sample;
+          }
+          int nsamples = 0;
+          if (resample_done) {
+              if (rate_1000 != st_rate_1000) { // rate changes
+                  adec_print("rate change from %d to %d\n", st_rate_1000, rate_1000);
+                  if (st_rate_1000 == 0) {
+                      st_rate_1000 = rate_1000;
+                      g_sound_touch_class->setSampleRate(g_sound_touch, audec->samplerate);
+                      g_sound_touch_class->setChannels(g_sound_touch, audec->channels);
+                      //g_sound_touch_class->setSetting(g_sound_touch, 2, 0);   // SETTING_USE_QUICKSEEK
+                      g_sound_touch_class->setTempo(g_sound_touch, st_rate_1000/1000.0f);
+                      g_sound_touch_class->clear(g_sound_touch);
+                      continue;
+                  }
+                  st_rate_1000 = rate_1000;
+                  g_sound_touch_class->setTempo(g_sound_touch, st_rate_1000/1000.0f);
+              } else {
+                  nsamples = len * 8 / alsa_params->bits_per_frame;
+                  g_sound_touch_class->putSamples(g_sound_touch, (SAMPLETYPE*)buffer, nsamples);
+              }
+          }
+          len = feed_remain;
+          buffer = feed_buffer;
+          int out_buf_samples = (sizeof(pcm_buffer) - len) * 8 / alsa_params->bits_per_frame;
+          int out_samples;
+          int num_out_samples = 0;
+          while ((out_buf_samples > 0) &&
+                  (out_samples = g_sound_touch_class->receiveSamples( g_sound_touch, (SAMPLETYPE *)(buffer + len), out_buf_samples)) > 0) {
+              len += out_samples * alsa_params->bits_per_frame / 8;
+              out_buf_samples -= out_samples;
+              num_out_samples += out_samples;
+          }
+          resample_done = (out_buf_samples == 0) ? 0 : 1;
       }
 #endif
-      int feedlen = alsa_play(alsa_params, (buffer + offset), len);
+feed_sample:
+      feedlen = alsa_play(alsa_params, (buffer + offset), len);
       if (feedlen >= 0) {
         offset += feedlen;
         len -= feedlen;
@@ -1343,6 +1409,7 @@ static int alsa_set_track_rate(struct aml_audio_dec *audec, void *rate) {
     resample_enable = 0;
   }
   audec->aout_ops.track_rate = arate;
+  rate_1000 = arate * 1000 + 0.5;
   amsysfs_set_sysfs_int("/sys/class/video/vsync_slow_factor", ratei);
 }
 #endif
