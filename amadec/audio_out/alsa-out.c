@@ -1363,7 +1363,12 @@ unsigned long alsa_latency(struct aml_audio_dec* audec)
 
 static int alsa_set_volume(struct aml_audio_dec* audec, float vol){
     alsa_param_t *alsa_param = (alsa_param_t *)audec->aout_ops.private_data;
-    alsa_param->staging_vol = vol;
+    // There's race condition in adec_armdec_loop, need_stop flag may skip
+    // alsa_init which will result in NULL alsa_param, NOTE this function runs
+    // in adec_armdec_loop thread, as well as alsa_init and alsa_stop (they
+    // change private_data), so there's no race between below two lines
+    if (alsa_param)
+        alsa_param->staging_vol = vol;
     return 0;
 }
 static int alsa_mute(struct aml_audio_dec* audec, adec_bool_t en){
