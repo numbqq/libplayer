@@ -182,6 +182,7 @@ struct aml_audio_dec {
     int out_len_after_last_valid_pts;
     int render_position;
     int use_render_add;
+	int dropping_video;
     int pcm_cache_size;
     int alsa_cache_size;
     int decode_sum_size;

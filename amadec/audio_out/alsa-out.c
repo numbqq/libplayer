@@ -813,7 +813,7 @@ static void *alsa_playback_loop(void *args)
        pthread_cond_init(&alsa_params->playback_cond, NULL);*/
 
     while (!alsa_params->wait_flag && alsa_params->stop_flag == 0) {
-        amthreadpool_thread_usleep(10000);
+        amthreadpool_thread_usleep(5000);
     }
 
     adec_print("alsa playback loop start to run !\n");
@@ -843,7 +843,7 @@ static void *alsa_playback_loop(void *args)
         }
 #endif
       if (alsa_params->pause_flag ||
-          (audec->use_render_add && !audec->apts_start_flag)) {
+          (audec->use_render_add && !audec->apts_start_flag) || (audec->use_render_add && audec->dropping_video)) {
         amthreadpool_thread_usleep(10000);
         continue;
       }
@@ -932,11 +932,9 @@ feed_sample:
         offset += feedlen;
         len -= feedlen;
         //audec->alsa_cache_size = len / arate;
-        audec->render_position += feedlen *arate / (alsa_params->bits_per_frame /4);
-        if (audec->render_position / alsa_params->rate - alsa_latency(audec) > 0) {
-            audec->apts64 = (audec->render_position / alsa_params->rate - alsa_latency(audec)) * 90;
-        } else {
-            audec->apts64 = 0;
+        audec->render_position += feedlen *arate / (alsa_params->bits_per_frame * alsa_params->realchanl / 2 / 8);
+        if (/*(audec->render_position * 1000 / alsa_params->rate) > alsa_latency(audec)*/1) {
+            audec->apts64 = ((audec->render_position *1000 / alsa_params->rate)- alsa_latency(audec)) * 90;
         }
       } else {
         offset = 0;

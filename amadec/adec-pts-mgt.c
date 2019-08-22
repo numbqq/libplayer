@@ -489,6 +489,15 @@ int adec_pts_resume(void)
 static int apts_interrupt = 0;
 static int pcrmaster_droppcm_flag = 0;
 static int pre_filltime = -1;
+int adec_set_tsync_firstapts(uint32_t pts)
+{
+    char buf[64] = {0};
+
+    snprintf(buf, 64, "0x%x", pts);
+    adec_print("TSYNC_FIRSTAPTS -> %s \n", buf);
+    return amsysfs_set_sysfs_str(TSYNC_FIRSTAPTS, buf);
+}
+
 int adec_refresh_pts(aml_audio_dec_t *audec)
 {
     unsigned long pts;
@@ -545,12 +554,56 @@ int adec_refresh_pts(aml_audio_dec_t *audec)
 
     /* get audio time stamp */
     if (audec->use_render_add) {
-        pts = audec->first_apts + audec->apts64;
+        audec->dropping_video = 0;
+        if (audec->first_apts + audec->apts64 > 0)
+            pts = audec->first_apts + audec->apts64;
+        else
+            pts = audec->first_apts;
+        //audec->adsp_ops.kernel_audio_pts = pts;
+        adec_print("audio pts %d \n", pts);
     } else {
         pts = adec_calc_pts(audec);
     }
 
     if (pts != -1 && (apts_start_flag != audec->apts_start_flag)) {
+        if (audec->use_render_add) {
+            char buf[PROPERTY_VALUE_MAX];
+            int count = 0,waitcount = 200;
+            int ret = -1;
+            ret = property_get("media.amadec.waitvpts.count", buf, NULL);
+            if (ret > 0) {
+                waitcount = atoi(buf);
+                adec_print("media.amadec.waitvpts.count %d",count);
+            }
+            uint32_t drop_vpts = 0,first_vpts,first_apts;
+            if (sysfs_get_int(TSYNC_FIRSTVPTS, &first_vpts) == -1) {
+                 adec_print("## [%s::%d] unable to get firstvpts! \n", __FUNCTION__, __LINE__);
+                 return -1;
+            }
+            if (sysfs_get_int(TSYNC_FIRSTAPTS, &first_apts) == -1) {
+                  adec_print("## [%s::%d] unable to get firstvpts! \n", __FUNCTION__, __LINE__);
+                  return -1;
+            }
+            if (first_apts - first_vpts >  SYSTIME_CORRECTION_THRESHOLD) {
+                audec->dropping_video = 1;
+                if (adec_set_tsync_firstapts(first_apts) < 0) {
+                    adec_print("## [%s::%d] unable to set firstapts! \n", __FUNCTION__, __LINE__);
+                    return -EINVAL;
+                }
+                while (count < waitcount) {
+                    if (sysfs_get_int(TSYNC_VPTS_DROP, &drop_vpts) == -1) {
+                        adec_print("## [%s::%d] unable to get TSYNC_VPTS_DROP! \n", __FUNCTION__, __LINE__);
+                        return -1;
+                    }
+                    adec_print("fisrt audio wait video %d ms,now audiopts %0x drop_vpts %0x \n",count * 10,first_apts,drop_vpts);
+                    if (abs(first_apts - drop_vpts)<= (SYSTIME_CORRECTION_THRESHOLD/2))
+                        break;
+                    usleep(10000);
+                    count++;
+                }
+            }
+            audec->dropping_video = 0;
+        }
         adec_print("audio pts start from 0x%lx \n", pts);
         sprintf(buf, "AUDIO_START:0x%lx", pts);
         if (amsysfs_set_sysfs_str(TSYNC_EVENT, buf) == -1) {

@@ -329,7 +329,7 @@ unsigned long  armdec_get_pts(dsp_operations_t *dsp_ops)
         }
         frame_nums = (audec->out_len_after_last_valid_pts * 8 / (data_width * channels));
         pts += (frame_nums * 90000 / samplerate);
-        pts += 90000 / 1000 * pts_delta;
+        pts += (90000 / 1000 * pts_delta);
         if (pts < 0)
             pts = 0;
         //adec_print("decode_offset:%d out_pcm:%d   pts:%d \n",audec->decode_offset,audec->out_len_after_last_valid_pts,pts);
@@ -338,7 +338,7 @@ unsigned long  armdec_get_pts(dsp_operations_t *dsp_ops)
 
     int len = audec->g_bst->buf_level + audec->pcm_cache_size + audec->alsa_cache_size;
     frame_nums = (len * 8 / (data_width * channels));
-    delay_pts = (frame_nums * 90000 / samplerate);
+    delay_pts = frame_nums * 90000 / samplerate;
     delay_pts = delay_pts*track_speed;
     if (pts > delay_pts) {
         pts -= delay_pts;
@@ -1090,6 +1090,8 @@ static void pause_adec(aml_audio_dec_t *audec)
     if (audec->state == ACTIVE) {
         audec->state = PAUSED;
         adec_pts_pause();
+        if (audec->use_render_add)
+            vdec_pts_pause();
         aout_ops->pause(audec);
     }
 }
@@ -1105,6 +1107,8 @@ static void resume_adec(aml_audio_dec_t *audec)
         audec->state = ACTIVE;
         aout_ops->resume(audec);
         adec_pts_resume();
+        if (audec->use_render_add)
+            vdec_pts_resume();
     }
 }
 
