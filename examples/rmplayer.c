@@ -169,7 +169,8 @@ static void signal_handler(int signum)
     printf("Get signum=%x\n", signum);
     codec_close(pcodec);
     fclose(fp);
-    osd_blank("/sys/class/graphics/fb0/blank", 0);
+    if (osd_blank("/sys/class/graphics/fb0/blank", 0) < 0)
+        osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 0);
     //osd_blank("/sys/class/graphics/fb1/blank",1);
     set_disable_video(1);
     set_display_axis(1);
@@ -360,7 +361,8 @@ int main(int argc, char *argv[])
         printf("Corret command: rmplay <filename> \n");
         return -1;
     }
-    osd_blank("/sys/class/graphics/fb0/blank", 1);
+    if (osd_blank("/sys/class/graphics/fb0/blank", 1) < 0)
+        osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 1);
     //osd_blank("/sys/class/graphics/fb1/blank",0);
     set_display_axis(0);
 
@@ -477,7 +479,8 @@ error:
     codec_close(pcodec);
     fclose(fp);
     set_disable_video(1);
-    osd_blank("/sys/class/graphics/fb0/blank", 0);
+    if (osd_blank("/sys/class/graphics/fb0/blank", 0) < 0)
+        osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 0);
     //osd_blank("/sys/class/graphics/fb1/blank",1);
     set_display_axis(1);
 

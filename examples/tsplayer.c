@@ -199,8 +199,10 @@ int main(int argc, char *argv[])
         printf("Corret command: tsplay <filename> <vid> <vformat(1 for mpeg2, 2 for h264)> <aid> <aformat(1 for mp3)> <channel> <samplerate>\n");
         return -1;
     }
-    osd_blank("/sys/class/graphics/fb0/blank", 1);
-    osd_blank("/sys/class/graphics/fb1/blank", 0);
+    if (osd_blank("/sys/class/graphics/fb0/blank", 1) < 0)
+        osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 1);
+    if (osd_blank("/sys/class/graphics/fb1/blank" , 1) < 0)
+        osd_blank("/sys/kernel/debug/dri/64/vpu/blank", 1);
     set_display_axis(0);
     set_stb_source_hiu();
     set_stb_demux_source_hiu();
@@ -302,7 +304,10 @@ error:
     codec_close(pcodec);
     fclose(fp);
     set_display_axis(1);
-
+    if (osd_blank("/sys/class/graphics/fb0/blank", 0) < 0)
+        osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 0);
+    if (osd_blank("/sys/class/graphics/fb1/blank", 0) < 0)
+        osd_blank("/sys/kernel/debug/dri/64/vpu/blank", 0);
     return 0;
 }
 

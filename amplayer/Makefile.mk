@@ -34,7 +34,14 @@ LDFLAGS+= -L$(INSTALL_DIR) -lavutil -lavformat -lavcodec -lm  -lpthread -L$(STAG
 
 INSTALL_DIR?=$(PREFIX)/lib/libplayer
 LDFLAGS+=-shared 
-CFLAGS=$(DIRS:%/=-I$(SRC)/%/include) 
+
+ifeq ($(findstring -DAML_OSD_USE_DRM,$(CFLAGS)),-DAML_OSD_USE_DRM)
+CFLAGS = -DAML_OSD_USE_DRM
+else
+CFLAGS =
+endif
+
+CFLAGS+=$(DIRS:%/=-I$(SRC)/%/include)
 
 ifeq ($(TARGET),libamplayer.so)
     DIRS=player/

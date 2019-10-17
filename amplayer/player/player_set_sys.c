@@ -237,12 +237,20 @@ int set_subtitle_startpts(int pts)
 
 int set_fb0_blank(int blank)
 {
+#ifndef AML_OSD_USE_DRM
     return  set_sysfs_int("/sys/class/graphics/fb0/blank", blank);
+#else
+    return  set_sysfs_int("/sys/kernel/debug/dri/0/vpu/blank", blank); //for wayland+drm blank debug
+#endif
 }
 
 int set_fb1_blank(int blank)
 {
-    return  set_sysfs_int("/sys/class/graphics/fb1/blank", blank);
+#ifndef AML_OSD_USE_DRM
+    return set_sysfs_int("/sys/class/graphics/fb1/blank", blank);
+#else
+    return set_sysfs_int("/sys/kernel/debug/dri/64/vpu/blank", blank); //for wayland+drm blank debug
+#endif
 }
 
 static int get_last_file(char *filename, int nsize)

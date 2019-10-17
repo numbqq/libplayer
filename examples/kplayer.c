@@ -189,20 +189,30 @@ static int set_osd_blank(int blank)
 {
     char *path1 = "/sys/class/graphics/fb0/blank";
     char *path2 = "/sys/class/graphics/fb1/blank";
+    char *wl_path0 = "/sys/kernel/debug/dri/0/vpu/blank";
+    char *wl_path1 = "/sys/kernel/debug/dri/64/vpu/blank";
 
     char *fb_stat0 = "/sys/class/graphics/fb0/osd_status";
     char *fb_stat1 = "/sys/class/graphics/fb1/osd_status";
 
     static int fb0_enable = -1;
     static int fb1_enable = -1;
-    char fb_osd_status[32]="";
+    static int use_wayland = 0;
+    char osd_status[128]="";
 
     if (fb0_enable == -1)
     {
-        fb_osd_status[0]='\0';
-        if (amsysfs_get_sysfs_str(fb_stat0, fb_osd_status, 32) == 0)
+        osd_status[0]='\0';
+        if ( !use_wayland && (amsysfs_get_sysfs_str(fb_stat0, osd_status, 128) == 0))
         {
-            if (strstr(fb_osd_status, "enable: 1"))
+            if (strstr(osd_status, "enable: 1"))
+                fb0_enable = 1;
+            else
+                fb0_enable = 0;
+        } else if (amsysfs_get_sysfs_str(wl_path0, osd_status, 128) == 0)
+        {
+            use_wayland = 1;
+            if (strstr(osd_status, "blank_enable: 0"))
                 fb0_enable = 1;
             else
                 fb0_enable = 0;
@@ -213,23 +223,30 @@ static int set_osd_blank(int blank)
     }
     if (fb1_enable == -1)
     {
-        fb_osd_status[0]='\0';
-        if (amsysfs_get_sysfs_str(fb_stat1, fb_osd_status, 32) == 0)
+        osd_status[0]='\0';
+        if (!use_wayland && (amsysfs_get_sysfs_str(fb_stat1, osd_status, 32) == 0))
         {
-            if (strstr(fb_osd_status, "enable: 1"))
+            if (strstr(osd_status, "enable: 1"))
                 fb1_enable = 1;
             else
                 fb1_enable = 0;
+        } else if (amsysfs_get_sysfs_str(wl_path1, osd_status, 128) == 0)
+        {
+            use_wayland = 1;
+            if (strstr(osd_status, "blank_enable: 0"))
+                fb0_enable = 1;
+            else
+                fb0_enable = 0;
         }
         else
             fb1_enable = 1; //In case the osd_status node not exist
     }
 
     if (fb0_enable)
-        amsysfs_set_sysfs_str(path1, blank ? "1" : "0");
+        amsysfs_set_sysfs_str(use_wayland ? wl_path0 : path1, blank ? "1" : "0");
 
     if (fb1_enable)
-        amsysfs_set_sysfs_str(path2, blank ? "1" : "0");
+        amsysfs_set_sysfs_str(use_wayland ? wl_path1 : path2, blank ? "1" : "0");
     return 0;
 }
 

@@ -179,9 +179,13 @@ static int set_osd_blank()
 {
     char *path1 = "/sys/class/graphics/fb0/blank";
     char *path2 = "/sys/class/graphics/fb1/blank";
+    char *wl_path0 = "/sys/kernel/debug/dri/0/vpu/blank";
+    char *wl_path1 = "/sys/kernel/debug/dri/64/vpu/blank";
 
-    amsysfs_set_sysfs_str(path1, "1");
-    amsysfs_set_sysfs_str(path2, "1");
+    if (amsysfs_set_sysfs_str(path1, "1") < 0)
+        amsysfs_set_sysfs_str(wl_path0, "1");
+    if (amsysfs_set_sysfs_str(path2, "1") < 0)
+        amsysfs_set_sysfs_str(wl_path1, "1");
     return 0;
 }
 

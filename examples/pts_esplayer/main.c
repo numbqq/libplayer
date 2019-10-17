@@ -236,13 +236,12 @@ int set_tsync_enable(int enable)
 
 int main(int argc, char *argv[])
 {
-
-
-
     ES_PlayInit();
 
-    osd_blank("/sys/class/graphics/fb0/blank", 1);
-    osd_blank("/sys/class/graphics/fb1/blank", 0);
+    if (osd_blank("/sys/class/graphics/fb0/blank", 1) < 0)
+        osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 1);
+    if (osd_blank("/sys/class/graphics/fb1/blank", 0) < 0)
+        osd_blank("/sys/kernel/debug/dri/64/vpu/blank", 1);
 
     set_tsync_enable(1);
 

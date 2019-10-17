@@ -224,8 +224,10 @@ int parser_option(int argc, char *argv[], global_ctrl_para_t *p)
             p->g_play_ctrl_para.novideo = 1;
             break;
         case 'o':
-            osd_blank("/sys/class/graphics/fb0/blank", 1);
-            osd_blank("/sys/class/graphics/fb1/blank" , 1);
+            if (osd_blank("/sys/class/graphics/fb0/blank", 1) < 0)
+                osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 1);
+            if (osd_blank("/sys/class/graphics/fb1/blank" , 1) < 0)
+                osd_blank("/sys/kernel/debug/dri/64/vpu/blank", 1);
             break;
         case 'k':
             osd_blank("/sys/class/video/blackout_policy", 0);
@@ -335,8 +337,10 @@ int main(int argc, char *argv[])
     controler_run(&player_para);
     release_extern_lib(&player_para);
     /*reopen osd for mouse lost*/
-    osd_blank("/sys/class/graphics/fb0/blank", 0);
-    osd_blank("/sys/class/graphics/fb1/blank", 0);
+    if (osd_blank("/sys/class/graphics/fb0/blank", 0) < 0)
+        osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 0);
+    if (osd_blank("/sys/class/graphics/fb1/blank", 0) < 0)
+        osd_blank("/sys/kernel/debug/dri/64/vpu/blank", 0);
     //amadec_thread_exit();
     //player_progress_exit();
     return 0;

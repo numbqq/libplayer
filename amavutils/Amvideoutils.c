@@ -32,6 +32,10 @@
 #include "amports/amstream.h"
 #include "ppmgr/ppmgr.h"
 
+#ifdef AML_OSD_USE_DRM
+#include "weston-drm-helper/drm-help-client.h"
+#endif
+
 #ifdef ANDROID
 #include <cutils/log.h>
 #include <cutils/properties.h>
@@ -481,6 +485,59 @@ void set_scale(int x, int y, int w, int h, int *dst_x, int *dst_y, int *dst_w, i
     *dst_h = (int)(tmp_h+0.5);
 }
 
+#ifdef AML_OSD_USE_DRM //for wayland+drm
+int amvideo_utils_set_virtual_position(int32_t x, int32_t y, int32_t w, int32_t h, int rotation)
+{
+    int dev_w, dev_h, disp_w, disp_h;
+    int dst_x, dst_y, dst_w, dst_h;
+    char buf[SYSCMD_BUFSIZE];
+    int ret = -1;
+    int axis[4];
+    int count = 10;
+    drm_client_ctx* client;
+    drm_output_rect rect;
+
+    do {
+        client = drm_help_client_create();
+    } while ((client == NULL)&&(--count));
+
+    if (client != NULL)
+    {
+        if (drm_help_client_get_ui_rect(client, &rect, 0)) {
+            LOGI("get ui-rect " "%"PRId32",%"PRId32",%"PRId32",%"PRId32 "\n", rect.x, rect.y, rect.w, rect.h);
+            disp_w = rect.w;
+            disp_h = rect.h;
+            ret = 0;
+        } else {
+            LOGI("get ui-rect failed");
+        }
+        drm_help_client_destory(client);
+    }else
+        LOGI("get drm client fail!!!");
+
+    if (amsysfs_get_sysfs_str(DISP_DEVICE_PATH, buf, sizeof(buf)) == 0) {
+        if (sscanf(buf, "%dx%d", &dev_w, &dev_h) == 2) {
+            LOGI("device resolution %dx%d\n", dev_w, dev_h);
+        }
+    }
+
+    dst_x = x*dev_w/disp_w;
+    dst_y = y*dev_h/disp_h;
+    dst_w = w*dev_w/disp_w;
+    dst_h = h*dev_h/disp_h;
+
+    axis[0] = dst_x;
+    axis[1] = dst_y;
+    axis[2] = dst_x + dst_w - 1;
+    axis[3] = dst_y + dst_h - 1;
+    sprintf(buf, "%d %d %d %d", axis[0], axis[1], axis[2], axis[3]);
+    ret = amsysfs_set_sysfs_str(VIDEO_AXIS_PATH, buf);
+
+OUT:
+    LOGI("amvideo_utils_set_virtual_position (corrected):: x=%d y=%d w=%d h=%d\n", dst_x, dst_y, dst_w, dst_h);
+    return ret;
+}
+#else
 int amvideo_utils_set_virtual_position(int32_t x, int32_t y, int32_t w, int32_t h, int rotation)
 {
     LOG_FUNCTION_NAME
@@ -870,6 +927,7 @@ OUT:
 
     return ret;
 }
+#endif
 
 int amvideo_utils_set_absolute_position(int32_t x, int32_t y, int32_t w, int32_t h, int rotation)
 {

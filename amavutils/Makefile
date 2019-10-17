@@ -16,9 +16,10 @@ SRC?=$(TOPDIR)
 CFLAGS+=-O2 -fPIC -g
 CFLAGS+=-I$(SRC) -I$(SRC)/include -I$(SRC)/../amcodec/include -L${LIB_DIR} -I$(HEADERS_DIR)
 
-
-
-
+ifeq ($(findstring -DAML_OSD_USE_DRM,$(CFLAGS)),-DAML_OSD_USE_DRM)
+CFLAGS += -I$(HEADERS_DIR)/json-c
+LDFLAGS += -ldrm-helper-client -ljson-c
+endif
 
 export CC CFLAGS
 
@@ -26,9 +27,6 @@ all: $(TARGET)
 
 $(TARGET): $(TARGET_OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(TARGET_OBJS:%.o=%.c) -o $@
-
-
-
 
 install:
 	-install -m 555 ${TARGET} $(INSTALL_DIR)
@@ -39,6 +37,3 @@ force:
 
 clean:
 	-rm -rf *.o ${AMADEC_DIST} ${MP3LIB} $(PCMLIB) $(ADPCMLIB) $(AACLIB) $(A52LIB)
-
-
-

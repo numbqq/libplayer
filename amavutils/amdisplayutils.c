@@ -31,7 +31,6 @@
 
 
 #define FB_DEVICE_PATH   "/sys/class/graphics/fb0/virtual_size"
-#define SCALE_AXIS_PATH  "/sys/class/graphics/fb0/scale_axis"
 #define SCALE_PATH       "/sys/class/graphics/fb0/scale"
 #define SCALE_REQUEST    "/sys/class/graphics/fb0/request2XScale"
 #define OSD_ROTATION_PATH "/sys/class/graphics/fb0/prot_angle"
@@ -149,7 +148,7 @@ int amdisplay_utils_set_scale_mode(int scale_wx, int scale_hx)
     }
 
     if (ret < 0) {
-        LOGI("set [%s]=[%s] failed\n", SCALE_AXIS_PATH, buf);
+        LOGI("set [%s]=[%s] failed\n", SCALE_REQUEST, buf);
         return -2;
     }
 

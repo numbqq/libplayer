@@ -74,8 +74,10 @@ int main(int argc, char *argv[])
 
     //buf=buffer;
     printf("\n*********CODEC PLAYER DEMO************\n\n");
-    osd_blank("/sys/class/graphics/fb0/blank", 1);
-    osd_blank("/sys/class/graphics/fb1/blank", 0);
+    if (osd_blank("/sys/class/graphics/fb0/blank", 1) < 0)
+        osd_blank("/sys/kernel/debug/dri/0/vpu/blank", 1);
+    if (osd_blank("/sys/class/graphics/fb1/blank", 1) < 0)
+        osd_blank("/sys/kernel/debug/dri/64/vpu/blank", 1);
     osd_blank("/sys/class/tsync/enable", 1);
     apcodec = &a_codec_para;
     vpcodec = &v_codec_para;
