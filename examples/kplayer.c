@@ -271,6 +271,13 @@ static void signal_handler(int signum)
     raise(signum);
 }
 
+static void set_video_display(int val)
+{
+    char *disable_path = "/sys/class/video/disable_video";
+
+    amsysfs_set_sysfs_int(disable_path, val);
+}
+
 #define TMP_COMMAND_MAX 512
 
 int main(int argc, char *argv[])
@@ -296,6 +303,8 @@ int main(int argc, char *argv[])
 
     /*set default path for vfm.*/
     set_vfm_path();
+    /*enable video layer*/
+    set_video_display(2);
 
     player_init();
     //set_display_axis(0);        //move osd out of screen to set video layer out
