@@ -63,7 +63,7 @@
 #define PPSCALER_RECT  "/sys/class/ppmgr/ppscaler_rect"
 #define WINDOW_AXIS_PATH_FB1      "/sys/class/graphics/fb1/window_axis"
 #define FREE_SCALE_AXIS_PATH_FB1   "/sys/class/graphics/fb1/free_scale_axis"
-
+#define VIDEO_DISPLAY_PATH  "/sys/class/video/disable_video"
 
 
 static int rotation = 0;
@@ -532,6 +532,7 @@ int amvideo_utils_set_virtual_position(int32_t x, int32_t y, int32_t w, int32_t 
     axis[3] = dst_y + dst_h - 1;
     sprintf(buf, "%d %d %d %d", axis[0], axis[1], axis[2], axis[3]);
     ret = amsysfs_set_sysfs_str(VIDEO_AXIS_PATH, buf);
+    ret |= amsysfs_set_sysfs_str(VIDEO_DISPLAY_PATH, "2");
 
 OUT:
     LOGI("amvideo_utils_set_virtual_position (corrected):: x=%d y=%d w=%d h=%d\n", dst_x, dst_y, dst_w, dst_h);
@@ -918,6 +919,7 @@ int amvideo_utils_set_virtual_position(int32_t x, int32_t y, int32_t w, int32_t 
     axis[3] = dst_y + dst_h - 1;
     sprintf(buf, "%d %d %d %d", axis[0], axis[1], axis[2], axis[3]);
     amsysfs_set_sysfs_str(VIDEO_AXIS_PATH, buf);
+    amsysfs_set_sysfs_str(VIDEO_DISPLAY_PATH, "2");
 
     ret = 0;
 OUT:
@@ -952,6 +954,7 @@ int amvideo_utils_set_absolute_position(int32_t x, int32_t y, int32_t w, int32_t
 
     sprintf(buf, "%d %d %d %d", axis[0], axis[1], axis[2], axis[3]);
     amsysfs_set_sysfs_str(VIDEO_AXIS_PATH, buf);
+    amsysfs_set_sysfs_str(VIDEO_DISPLAY_PATH, "2");
 
     return 0;
 }
