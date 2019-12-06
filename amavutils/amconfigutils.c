@@ -318,4 +318,12 @@ int property_set(const char *key, const char *value)
    // printf("player system property_get [%s] %s\n", __FILE__, __FUNCTION__);
     return am_setconfig(key, value);
 }
+int property_get_int32(const char *key, int default_value)
+{
+   char value[CONFIG_VALUE_MAX];
+   if (property_get(key, value, "") > 0) {
+      return atoi(value);
+   }
+   return default_value;
+}
 #endif

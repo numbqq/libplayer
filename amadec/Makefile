@@ -4,7 +4,7 @@ LIB_DIR?=$(M_PREFIX)/lib
 HEADERS_DIR?=$(M_PREFIX)/include
 
 TARGET_OBJS=adec-external-ctrl.o adec-internal-mgt.o adec-ffmpeg-mgt.o adec-message.o adec-pts-mgt.o feeder.o adec_write.o adec_read.o\
-           dsp/audiodsp-ctl.o audio_out/alsa-out.o audio_out/alsa-out-raw.o audio_out/aml_resample.o audiodsp_update_format.o spdif_api.o pcmenc_api.o dts_transenc_api.o dts_enc.o adec_assoc_audio.o adec-wfd.o software_buf/software_buf.o
+           dsp/audiodsp-ctl.o audio_out/alsa-out.o audio_out/alsa-out-raw.o audio_out/dtv_patch_out.o audio_out/aml_resample.o audiodsp_update_format.o spdif_api.o pcmenc_api.o dts_transenc_api.o dts_enc.o adec_assoc_audio.o adec-wfd.o software_buf/software_buf.o
 
 TARGET=libamadec.so
 
