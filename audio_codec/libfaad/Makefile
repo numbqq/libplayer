@@ -1,7 +1,7 @@
 M_PREFIX=$(LIBPLAYER_STAGING_DIR)/usr
 LIB_DIR?=$(M_PREFIX)/lib
 INSTALL_DIR=$(LIB_DIR)/libplayer
-DW_NAME		= faad
+DW_NAME		= faad-aml
 
 SRC_PATH		= ./
 

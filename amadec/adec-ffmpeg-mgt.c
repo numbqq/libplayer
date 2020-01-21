@@ -55,8 +55,8 @@ typedef struct {
 } audio_lib_t;
 
 audio_lib_t audio_lib_list[] = {
-    {ACODEC_FMT_AAC, "libfaad.so"},
-    {ACODEC_FMT_AAC_LATM, "libfaad.so"},
+    {ACODEC_FMT_AAC, "libfaad-aml.so"},
+    {ACODEC_FMT_AAC_LATM, "libfaad-aml.so"},
     {ACODEC_FMT_APE, "libape.so"},
     {ACODEC_FMT_MPEG, "libammad.so"},
     {ACODEC_FMT_MPEG2, "libammad.so"},
