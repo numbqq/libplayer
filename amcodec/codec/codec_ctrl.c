@@ -44,6 +44,7 @@
 #include "codec_h_ctrl.h"
 #include <adec-external-ctrl.h>
 #include <Amvideoutils.h>
+#include <amports/videosync.h>
 
 
 #define SUBTITLE_EVENT
@@ -109,12 +110,20 @@ static int codec_change_buf_size(codec_para_t *pcodec)
 static  int set_video_format(codec_para_t *pcodec)
 {
     int format = pcodec->video_type;
+    int video_path = pcodec->video_path;
     int r;
 
     if (format < 0 || format > VFORMAT_MAX) {
         return -CODEC_ERROR_VIDEO_TYPE_UNKNOW;
     }
 
+    if (pcodec->decoder_type == DECODER_TYPE_FRAME_MODE) {
+        if (pcodec->display_mode == DISPLAY_MODE_PIPVIDEO) {
+            pcodec->video_path = FRAME_BASE_PATH_PIP_TUNNEL_MODE;
+        } else {
+            pcodec->video_path = FRAME_BASE_PATH_TUNNEL_MODE;
+        }
+    }
     r = codec_h_ioctl(pcodec->handle, AMSTREAM_IOC_SET, AMSTREAM_SET_VFORMAT, format);
     if (pcodec->video_pid >= 0) {
         r = codec_h_ioctl(pcodec->handle, AMSTREAM_IOC_SET, AMSTREAM_SET_VID, pcodec->video_pid);
@@ -125,6 +134,14 @@ static  int set_video_format(codec_para_t *pcodec)
     if (r < 0) {
         return system_error_to_codec_error(r);
     }
+
+    if (pcodec->decoder_type == DECODER_TYPE_FRAME_MODE) {
+        r = codec_h_ioctl(pcodec->handle, AMSTREAM_IOC_SET, AMSTREAM_SET_FRAME_BASE_PATH, pcodec->video_path);
+        if (r < 0) {
+            return system_error_to_codec_error(r);
+        }
+    }
+
     return 0;
 }
 
@@ -321,10 +338,21 @@ static inline int codec_video_es_init(codec_para_t *pcodec)
 
     flags |= pcodec->noblock ? O_NONBLOCK : 0;
 
+
     if (pcodec->video_type == VFORMAT_HEVC || pcodec->video_type == VFORMAT_VP9) {
-        handle = codec_h_open(CODEC_VIDEO_HEVC_DEVICE, flags);
+        if (pcodec->decoder_type == DECODER_TYPE_FRAME_MODE)
+            handle = codec_h_open(CODEC_VIDEO_HEVC_FRAME, flags);
+        else if (pcodec->decoder_type == DECODER_TYPE_STREAM_MODE)
+            handle = codec_h_open(CODEC_VIDEO_HEVC_STREAM, flags);
+        else
+            handle = codec_h_open(CODEC_VIDEO_HEVC_DEVICE, flags);
     } else {
-        handle = codec_h_open(CODEC_VIDEO_ES_DEVICE, flags);
+        if (pcodec->decoder_type == DECODER_TYPE_FRAME_MODE)
+            handle = codec_h_open(CODEC_VIDEO_ES_FRAME, flags);
+        else if (pcodec->decoder_type == DECODER_TYPE_STREAM_MODE)
+            handle = codec_h_open(CODEC_VIDEO_ES_STREAM, flags);
+        else
+            handle = codec_h_open(CODEC_VIDEO_ES_DEVICE, flags);
     }
     if (handle < 0) {
         codec_r = system_error_to_codec_error(handle);
@@ -768,6 +796,16 @@ int codec_init(codec_para_t *pcodec)
             return -CODEC_ERROR_INIT_FAILED;
         }
     }
+
+    if ((pcodec->display_mode == DISPLAY_MODE_PIPVIDEO) &&
+        (pcodec->cntl_handle > 0)) {
+        uint32_t vmaster_info[2] = {0,1};
+        ret = codec_h_control(pcodec->cntl_handle, VIDEOSYNC_IOC_SET_VMASTER, (unsigned int)vmaster_info);
+        //if (ret < 0) {
+            //return system_error_to_codec_error(r);
+        //}
+    }
+
     if (pcodec->has_audio) {
         arm_audio_info a_ainfo;
         memset(&a_ainfo, 0, sizeof(arm_audio_info));
@@ -1156,7 +1194,12 @@ int codec_get_adec_state(codec_para_t *p, struct adec_status *adec)
 static int video_pause(codec_para_t *p)
 {
     CODEC_PRINT("video_pause!\n");
-    return codec_h_control(p->cntl_handle, AMSTREAM_IOC_VPAUSE, 1);
+    if (p->display_mode != DISPLAY_MODE_PIPVIDEO) {
+        return codec_h_control(p->cntl_handle, AMSTREAM_IOC_VPAUSE, 1);
+    } else {
+        uint32_t pause_info[2] = {0,1};
+        return codec_h_control(p->cntl_handle, VIDEOSYNC_IOC_SET_VPAUSE, (unsigned int)pause_info);
+    }
 }
 
 /* --------------------------------------------------------------------------*/
@@ -1171,7 +1214,12 @@ static int video_pause(codec_para_t *p)
 static int video_resume(codec_para_t *p)
 {
     CODEC_PRINT("video_resume!\n");
-    return codec_h_control(p->cntl_handle, AMSTREAM_IOC_VPAUSE, 0);
+    if (p->display_mode != DISPLAY_MODE_PIPVIDEO) {
+        return codec_h_control(p->cntl_handle, AMSTREAM_IOC_VPAUSE, 0);
+    } else {
+        uint32_t pause_info[2] = {0,0};
+        return codec_h_control(p->cntl_handle, VIDEOSYNC_IOC_SET_VPAUSE, (unsigned int)pause_info);
+    }
 }
 
 /* --------------------------------------------------------------------------*/
@@ -1528,11 +1576,14 @@ int codec_write_sub_data(codec_para_t *pcodec, char *buf, unsigned int length)
 int codec_init_cntl(codec_para_t *pcodec)
 {
     CODEC_HANDLE cntl;
+    char* cntl_device_name = CODEC_CNTL_DEVICE;
 
-
-    cntl = codec_h_open(CODEC_CNTL_DEVICE, O_RDWR);
+    if (pcodec->display_mode == DISPLAY_MODE_PIPVIDEO) {
+        cntl_device_name = CODEC_CNTL_VIDEOSYNC_DEVICE;
+    }
+    cntl = codec_h_open(cntl_device_name, O_RDWR | O_NONBLOCK);
     if (cntl < 0) {
-        CODEC_PRINT("get %s failed\n", CODEC_CNTL_DEVICE);
+        CODEC_PRINT("get %s failed\n", cntl_device_name);
         return system_error_to_codec_error(cntl);
     }
 
@@ -1859,7 +1910,13 @@ int codec_get_vpts(codec_para_t *pcodec)
         return -1;
     }
 
-    ret = codec_h_ioctl(pcodec->handle, AMSTREAM_IOC_GET, AMSTREAM_GET_VPTS, (unsigned long)&vpts);
+    if (pcodec->display_mode != DISPLAY_MODE_PIPVIDEO) {
+        ret = codec_h_ioctl(pcodec->handle, AMSTREAM_IOC_GET, AMSTREAM_GET_VPTS, (unsigned long)&vpts);
+    } else {
+        uint32_t vpts_info[2] = {0,0};
+        ret = codec_h_control(pcodec->cntl_handle, VIDEOSYNC_IOC_GET_VPTS, (unsigned int)&vpts_info);
+        vpts = vpts_info[1];
+    }
     if (ret < 0) {
         CODEC_PRINT("[%s]ioctl failed %d\n", __FUNCTION__, ret);
         return -1;
@@ -1887,7 +1944,13 @@ int codec_get_pcrscr(codec_para_t *pcodec)
         return -1;
     }
 
-    ret = codec_h_ioctl(pcodec->handle, AMSTREAM_IOC_GET, AMSTREAM_GET_PCRSCR, (unsigned long)&pcrscr);
+    if (pcodec->display_mode != DISPLAY_MODE_PIPVIDEO) {
+        ret = codec_h_ioctl(pcodec->handle, AMSTREAM_IOC_GET, AMSTREAM_GET_PCRSCR, (unsigned long)&pcrscr);
+    } else {
+        uint32_t pcr_info[2] = {0,0};
+        ret = codec_h_control(pcodec->cntl_handle, VIDEOSYNC_IOC_GET_PCRSCR, (unsigned int)&pcr_info);
+        pcrscr = pcr_info[1];
+    }
     if (ret < 0) {
         CODEC_PRINT("[%s]ioctl failed %d\n", __FUNCTION__, ret);
         return -1;
@@ -1937,7 +2000,10 @@ int codec_set_pcrscr(codec_para_t *pcodec, int val)
 /* --------------------------------------------------------------------------*/
 int codec_set_syncenable(codec_para_t *pcodec, int enable)
 {
-    return codec_h_control(pcodec->cntl_handle, AMSTREAM_IOC_SYNCENABLE, (unsigned long)enable);
+    if (pcodec->display_mode != DISPLAY_MODE_PIPVIDEO)
+        return codec_h_control(pcodec->cntl_handle, AMSTREAM_IOC_SYNCENABLE, (unsigned long)enable);
+    else
+        return codec_h_control(pcodec->cntl_handle, VIDEOSYNC_IOC_SET_VPAUSE, (unsigned long)enable);
 }
 
 /* --------------------------------------------------------------------------*/
@@ -2571,6 +2637,23 @@ int codec_utils_set_video_position(int x, int y, int w, int h, int rotation)
 
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+* @brief  set eos for frame mode
+*
+* @param[in]  pcodec  Pointer of codec parameter structure
+*
+* @return     0  success or fail error type
+*/
+/* --------------------------------------------------------------------------*/
+int codec_set_eos(codec_para_t *pcodec, int is_eos) {
+    int r = codec_h_ioctl(pcodec->handle, AMSTREAM_IOC_SET, AMSTREAM_SET_EOS, is_eos);
+    //if (r < 0) {
+    //    return system_error_to_codec_error(r);
+    //}
+    CODEC_PRINT("codec_set_eos is_eos =%d\n", is_eos);
+    return 0;
+}
 
 /* --------------------------------------------------------------------------*/
 /**

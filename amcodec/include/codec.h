@@ -145,4 +145,5 @@ int codec_utils_set_video_position(int x, int y, int w, int h, int rotation);
 int codec_amsub_read_outdata(codec_para_t *pcodec,amsub_info_t *amsub_info);
 void codec_close_subtitle(codec_para_t *pcodec);
 void codec_resume_subtitle(codec_para_t *pcodec, unsigned int has_sub);
+int codec_set_eos(codec_para_t *pcodec, int is_eos);
 #endif
