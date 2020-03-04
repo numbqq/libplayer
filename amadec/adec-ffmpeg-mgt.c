@@ -348,8 +348,8 @@ unsigned long  armdec_get_pts(dsp_operations_t *dsp_ops)
     val = pts;
     if (audec->last_valid_pts > pts) {
         adec_print("audec->last_valid_pts:%ld  > pts:%ld \n",audec->last_valid_pts,pts);
-        val = pts = audec->last_valid_pts;
-        //val = -1;
+        //val = pts = audec->last_valid_pts;
+        return -1;
     }
     audec->last_valid_pts = pts;
     audec->out_len_after_last_valid_pts = 0;
@@ -795,6 +795,10 @@ static int audio_codec_init(aml_audio_dec_t *audec)
             audec->format == ACODEC_FMT_MULAW      || audec->format == ACODEC_FMT_ADPCM ||
             audec->format == ACODEC_FMT_WMAPRO) {
             audec->adec_ops->channels = NumChSave;
+        }
+        if (audec->format == ACODEC_FMT_AC3 ||
+            audec->format == ACODEC_FMT_EAC3 ) {
+            audec->channels  = 2;
         }
     }
     //for raac/cook audio pts are updated from audio decoder,so set a invalid pts default.
@@ -1314,6 +1318,12 @@ static void check_audio_info_changed(aml_audio_dec_t *audec)
     int BufLevelAllowDoFmtChg = 0;
     audio_decoder_operations_t *adec_ops  = audec->adec_ops;
     adec_ops->getinfo(audec->adec_ops, &g_AudioInfo);
+
+    if (audec->format == ACODEC_FMT_AC3 ||
+        audec->format == ACODEC_FMT_EAC3 ) {
+        if (g_AudioInfo.channels < 2)
+            g_AudioInfo.channels = 2;
+    }
     if (g_AudioInfo.channels != 0 && g_AudioInfo.samplerate != 0) {
         if ((g_AudioInfo.channels != g_bst->channels) || (g_AudioInfo.samplerate != g_bst->samplerate)) {
             // the first time we get sample rate/channel num info,we use that to set audio track.
