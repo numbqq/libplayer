@@ -35,6 +35,7 @@
 #include "amports/aformat.h"
 #include "ppmgr/ppmgr.h"
 #include <stdlib.h>
+#include <stdint.h>
 
 typedef int CODEC_HANDLE;
 
@@ -202,16 +203,17 @@ typedef enum {
 
 typedef struct drm_info {
     drm_level_t drm_level;
-    int drm_flag;
-    int drm_hasesdata;
-    int drm_priv;
-    unsigned int drm_pktsize;
-    unsigned int drm_pktpts;
-    unsigned int drm_phy;
-    unsigned int drm_vir;
-    unsigned int drm_remap;
-    int data_offset;
-    int extpad[8];
+    uint32_t drm_flag;
+    uint32_t drm_hasesdata;
+    uint32_t drm_priv;
+    uint32_t drm_pktsize;
+    uint32_t drm_pktpts;
+    uint32_t drm_phy;
+    uint32_t drm_vir;
+    uint32_t drm_remap;
+    uint32_t data_offset;
+    uint32_t handle;
+    uint32_t extpad[7];
 } drminfo_t;
 
 //audio decoder type, default arc
